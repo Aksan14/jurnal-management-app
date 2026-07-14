@@ -70,24 +70,60 @@ fi
 # ─── 3. Setup backend .env ───────────────────────────────────────────────────
 BACKEND_ENV="$APP_DIR/backend/.env"
 if [ ! -f "$BACKEND_ENV" ]; then
-  warn ".env backend tidak ditemukan – membuat dari .env.example"
-  cp "$APP_DIR/backend/.env.example" "$BACKEND_ENV"
-  warn ">>> EDIT $BACKEND_ENV dan isi nilai DB_PASSWORD, JWT_SECRET, SMTP_* sebelum lanjut <<<"
-  warn "Jalankan: nano $BACKEND_ENV"
-  read -rp "Tekan ENTER setelah selesai mengisi .env backend..." _
+  warn ".env backend tidak ditemukan – membuat konfigurasi default produksi"
+  DB_PASSWORD_GENERATED="$(openssl rand -hex 16)"
+  JWT_SECRET_GENERATED="$(openssl rand -hex 32)"
+  JWT_REFRESH_SECRET_GENERATED="$(openssl rand -hex 32)"
+  cat > "$BACKEND_ENV" <<EOF
+APP_ENV=production
+PORT=8080
+
+# Database
+DB_HOST=db
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=${DB_PASSWORD_GENERATED}
+DB_NAME=jurnal_db
+DB_SSLMODE=disable
+
+# JWT
+JWT_SECRET=${JWT_SECRET_GENERATED}
+JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET_GENERATED}
+
+# SMTP Email
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+EOF
+  info "File backend .env berhasil dibuat otomatis."
 fi
 
 # Pastikan DB_HOST di .env sudah mengarah ke service 'db' (bukan localhost)
 sed -i 's/^DB_HOST=localhost/DB_HOST=db/' "$BACKEND_ENV"
+sed -i 's/^DB_USER=.*/DB_USER=root/' "$BACKEND_ENV"
+
+# Sinkronkan variabel Docker Compose dari backend/.env
+PROJECT_ENV="$APP_DIR/.env"
+DB_NAME_VALUE="$(grep '^DB_NAME=' "$BACKEND_ENV" | cut -d '=' -f2-)"
+DB_PASSWORD_VALUE="$(grep '^DB_PASSWORD=' "$BACKEND_ENV" | cut -d '=' -f2-)"
+cat > "$PROJECT_ENV" <<EOF
+DB_ROOT_PASSWORD=${DB_PASSWORD_VALUE}
+DB_NAME=${DB_NAME_VALUE}
+DB_USER=root
+DB_PASSWORD=${DB_PASSWORD_VALUE}
+EOF
 
 # ─── 4. Setup frontend .env ──────────────────────────────────────────────────
 FRONTEND_ENV="$APP_DIR/frontend/.env.local"
 if [ ! -f "$FRONTEND_ENV" ]; then
   info "Membuat .env.local frontend..."
-  cp "$APP_DIR/frontend/.env.example" "$FRONTEND_ENV"
   # Set default API URL ke IP server ini
   SERVER_IP=$(curl -s ifconfig.me || echo "168.110.196.46")
-  sed -i "s|http://168.110.196.46:8080|http://${SERVER_IP}:8080|" "$FRONTEND_ENV"
+  cat > "$FRONTEND_ENV" <<EOF
+NEXT_PUBLIC_API_URL=http://${SERVER_IP}:8080/api/v1
+EOF
   info "NEXT_PUBLIC_API_URL diset ke: http://${SERVER_IP}:8080/api/v1"
 fi
 
