@@ -1,0 +1,19 @@
+# Binaries / build output
+server
+*.exe
+
+# Environment files (never commit secrets)
+.env
+
+# Go cache
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Uploads (mounted as volume)
+uploads/
