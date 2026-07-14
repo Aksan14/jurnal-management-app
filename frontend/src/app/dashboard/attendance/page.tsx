@@ -40,6 +40,7 @@ export default function AttendancePage() {
   const [lastScanResult, setLastScanResult] = useState<any>(null);
   const [configMissing, setConfigMissing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("");
+  const [nowTime, setNowTime] = useState(() => new Date());
   const scanCooldown = useRef(false);
   const [geoLat, setGeoLat] = useState<number|null>(null);
   const [geoLng, setGeoLng] = useState<number|null>(null);
@@ -100,6 +101,12 @@ export default function AttendancePage() {
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Live clock
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -365,6 +372,23 @@ export default function AttendancePage() {
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2"><Scan className="h-5 w-5 text-primary"/>Scanner Gerbang Admin</CardTitle>
                     <CardDescription>Aktifkan kamera atau input manual kode QR siswa/guru.</CardDescription>
+                    {/* Live clock */}
+                    <div className="mt-3 flex items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-4 py-3">
+                      <div>
+                        <p className="text-2xl font-bold font-mono tracking-widest text-primary">
+                          {nowTime.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {nowTime.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground space-y-0.5">
+                        <p>Masuk Guru: <span className="text-foreground font-medium">{cfgGuru.jam_masuk_mulai} – {cfgGuru.jam_masuk_selesai}</span></p>
+                        <p>Pulang Guru: <span className="text-foreground font-medium">{cfgGuru.jam_pulang_mulai} – {cfgGuru.jam_pulang_selesai}</span></p>
+                        <p>Masuk Siswa: <span className="text-foreground font-medium">{cfgSiswa.jam_masuk_mulai} – {cfgSiswa.jam_masuk_selesai}</span></p>
+                        <p>Pulang Siswa: <span className="text-foreground font-medium">{cfgSiswa.jam_pulang_mulai} – {cfgSiswa.jam_pulang_selesai}</span></p>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Camera Scanner */}
