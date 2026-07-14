@@ -496,7 +496,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     ? pathname === "/dashboard"
                     : pathname === item.href || pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
-                const isMaster = item.href === "/dashboard/master";
+                const isMaster    = item.href === "/dashboard/master";
+                const isReports   = item.href === "/dashboard/reports";
+                const isBk        = item.href === "/dashboard/bk";
+                const isPerizinan = item.href === "/dashboard/perizinan";
 
                 const masterSubItems = [
                   { label: "Jurusan", tab: "jurusan" },
@@ -507,11 +510,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   { label: "Jadwal Mengajar", tab: "mengajar" },
                 ];
 
+                const bkSubItems = [
+                  { label: "Sesi Konseling",   href: "/dashboard/bk" },
+                  { label: "Pelanggaran & Poin", href: "/dashboard/bk/pelanggaran" },
+                  { label: "Prestasi",          href: "/dashboard/bk/prestasi" },
+                  { label: "Hasil Psikotes",    href: "/dashboard/bk/psikotes" },
+                  { label: "Proyek BK",         href: "/dashboard/bk/proyek" },
+                ];
+
+                const perizinanSubItems = [
+                  { label: "Izin Siswa",  href: "/dashboard/perizinan" },
+                  { label: "Izin Guru",   href: "/dashboard/perizinan/guru" },
+                  { label: "Persetujuan", href: "/dashboard/perizinan/persetujuan" },
+                ];
+
+                const reportsSubItems = [
+                  { label: "Log Aktivitas",    href: "/dashboard/reports" },
+                  { label: "Rekap Jurnal Guru", href: "/dashboard/reports/rekap-guru" },
+                ];
+
+                const hasSubMenu = isMaster || isReports || isBk || isPerizinan;
+                const subOpen =
+                  isMaster ? masterOpen :
+                  isReports ? reportsOpen :
+                  isBk ? bkOpen :
+                  isPerizinan ? perizinanOpen : false;
+                const toggleSub = () => {
+                  if (isMaster)    setMasterOpen(v => !v);
+                  else if (isReports)   setReportsOpen(v => !v);
+                  else if (isBk)        setBkOpen(v => !v);
+                  else if (isPerizinan) setPerizinanOpen(v => !v);
+                };
+                const subItems =
+                  isMaster ? [] :
+                  isReports ? reportsSubItems :
+                  isBk ? bkSubItems :
+                  isPerizinan ? perizinanSubItems : [];
+
                 return (
                   <div key={item.href}>
-                    {isMaster ? (
+                    {hasSubMenu ? (
                       <button
-                        onClick={() => setMasterOpen((prev) => !prev)}
+                        onClick={toggleSub}
                         className={`w-full flex items-center px-4 py-3 rounded-xl gap-3 text-sm font-medium transition-all duration-200 ${
                           isActive
                             ? "bg-primary text-white shadow-md shadow-primary/20"
@@ -520,7 +560,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       >
                         <Icon className="h-5 w-5" />
                         <span className="flex-1 text-left">{item.title}</span>
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${masterOpen ? "rotate-180" : ""} ${isActive ? "text-white/70" : ""}`} />
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${subOpen ? "rotate-180" : ""} ${isActive ? "text-white/70" : ""}`} />
                       </button>
                     ) : (
                       <a
@@ -536,6 +576,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <span className="flex-1">{item.title}</span>
                       </a>
                     )}
+
+                    {/* Master sub-items (tab-based) */}
                     {isMaster && masterOpen && (
                       <div className="mt-1 ml-4 pl-4 border-l border-border/20 space-y-0.5">
                         {masterSubItems.map((sub) => {
@@ -547,9 +589,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               href={`/dashboard/master?tab=${sub.tab}`}
                               onClick={() => setSidebarOpen(false)}
                               className={`flex items-center px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
-                                isSubActive
-                                  ? "bg-primary/15 text-primary"
-                                  : "text-gray-500 hover:bg-accent/50 hover:text-gray-200"
+                                isSubActive ? "bg-primary/15 text-primary" : "text-gray-500 hover:bg-accent/50 hover:text-gray-200"
+                              }`}
+                            >
+                              <span className={`w-1 h-1 rounded-full mr-2 shrink-0 ${isSubActive ? "bg-primary" : "bg-gray-600"}`} />
+                              {sub.label}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* href-based sub-items (BK, Perizinan, Laporan) */}
+                    {!isMaster && hasSubMenu && subOpen && (
+                      <div className="mt-1 ml-4 pl-4 border-l border-border/20 space-y-0.5">
+                        {subItems.map((sub) => {
+                          const isSubActive = pathname === sub.href;
+                          return (
+                            <a
+                              key={sub.href}
+                              href={sub.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={`flex items-center px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
+                                isSubActive ? "bg-primary/15 text-primary" : "text-gray-500 hover:bg-accent/50 hover:text-gray-200"
                               }`}
                             >
                               <span className={`w-1 h-1 rounded-full mr-2 shrink-0 ${isSubActive ? "bg-primary" : "bg-gray-600"}`} />
@@ -600,7 +662,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Button variant="ghost" size="icon" className="relative text-gray-400 hover:text-white" onClick={() => { router.push("/dashboard/inbox"); setUnreadCount(0); }}>
               <Bell className="h-5 w-5" />
               {unreadCount > 0 ? (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               ) : (
