@@ -18,6 +18,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// jakartaLoc is loaded once; falls back to UTC+7 fixed offset if tzdata missing.
+var jakartaLoc *time.Location
+
+func init() {
+	var err error
+	jakartaLoc, err = time.LoadLocation("Asia/Makassar")
+	if err != nil {
+		jakartaLoc = time.FixedZone("WITA", 8*60*60)
+	}
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 const (
 	MaxHariMundurJurnal = 3  // Batas hari mundur input jurnal (tanpa approval)
@@ -993,8 +1004,8 @@ func NewAttendanceService(db *gorm.DB, absGuruRepo domain.AbsensiGuruRepository,
 }
 
 func (s *attendanceService) GetGuruAttendanceStatus(guruID uint) (*dto.AttendanceStatusResponse, error) {
-	now := time.Now()
-	todayDate, _ := time.Parse("2006-01-02", now.Format("2006-01-02"))
+	now := time.Now().In(jakartaLoc)
+	todayDate, _ := time.ParseInLocation("2006-01-02", now.Format("2006-01-02"), jakartaLoc)
 	record, err := s.absGuruRepo.FindByGuruAndDate(guruID, todayDate)
 	if err != nil {
 		return &dto.AttendanceStatusResponse{AlreadyCheckedIn: false, AlreadyCheckedOut: false, Status: "Belum Absen"}, nil
@@ -1024,9 +1035,9 @@ func (s *attendanceService) ScanTeacherQR(req dto.ScanQRAttendanceRequest, ip, u
 		return nil, errors.New("guru profile not found")
 	}
 
-	now := time.Now()
+	now := time.Now().In(jakartaLoc)
 	todayStr := now.Format("2006-01-02")
-	todayDate, _ := time.Parse("2006-01-02", todayStr)
+	todayDate, _ := time.ParseInLocation("2006-01-02", todayStr, jakartaLoc)
 
 	libur, _ := s.liburRepo.FindByDate(todayDate)
 	if libur != nil {
@@ -1078,8 +1089,8 @@ func (s *attendanceService) ScanStudentQR(req dto.ScanQRAttendanceRequest, ip, u
 	}
 	siswaID := uint(siswaIDUint)
 
-	now := time.Now()
-	todayDate, _ := time.Parse("2006-01-02", now.Format("2006-01-02"))
+	now := time.Now().In(jakartaLoc)
+	todayDate, _ := time.ParseInLocation("2006-01-02", now.Format("2006-01-02"), jakartaLoc)
 
 	libur, _ := s.liburRepo.FindByDate(todayDate)
 	if libur != nil {
