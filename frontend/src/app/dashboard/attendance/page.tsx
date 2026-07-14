@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { toast } from "sonner";
@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from "@/components/ui/table";
+import dynamic from "next/dynamic";
+
+const QrCameraScanner = dynamic(() => import("@/components/QrCameraScanner"), { ssr: false });
 
 const STATUS_COLOR: Record<string, string> = {
   Hadir:"bg-emerald-500/20 text-emerald-400 border-emerald-500/30", Terlambat:"bg-amber-500/20 text-amber-400 border-amber-500/30",
@@ -33,6 +36,9 @@ export default function AttendancePage() {
   const [scanLat, setScanLat] = useState("-6.2088");
   const [scanLng, setScanLng] = useState("106.8456");
   const [scanLoading, setScanLoading] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [lastScanResult, setLastScanResult] = useState<any>(null);
+  const scanCooldown = useRef(false);
   const [geoLat, setGeoLat] = useState<number|null>(null);
   const [geoLng, setGeoLng] = useState<number|null>(null);
   const [cfgGuru, setCfgGuru] = useState<any>({ jam_masuk_mulai:"06:30", jam_masuk_selesai:"07:30", jam_pulang_mulai:"15:00", jam_pulang_selesai:"17:00" });
@@ -84,7 +90,12 @@ export default function AttendancePage() {
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos)=>{ setGeoLat(pos.coords.latitude); setGeoLng(pos.coords.longitude); }, ()=>{}
+        (pos)=>{ 
+          setGeoLat(pos.coords.latitude); 
+          setGeoLng(pos.coords.longitude);
+          setScanLat(String(pos.coords.latitude));
+          setScanLng(String(pos.coords.longitude));
+        }, ()=>{}
       );
     }
   }, []);
@@ -108,15 +119,34 @@ export default function AttendancePage() {
   const handleGateScan = async (e:React.FormEvent) => {
     e.preventDefault();
     if(!scannedQR.trim()) return toast.error("QR Code kosong");
+    await doScan(scannedQR);
+  };
+
+  const handleCameraScan = async (qrValue: string) => {
+    if (!qrValue.startsWith("JURNAL_QR:")) return;
+    if (scanCooldown.current) return;
+    scanCooldown.current = true;
+    setTimeout(() => { scanCooldown.current = false; }, 2500);
+    await doScan(qrValue);
+  };
+
+  const doScan = async (qrCode: string) => {
     setScanLoading(true);
     try {
-      const parts=scannedQR.split(":");
-      const ep = parts[1]==="guru" ? "/attendance/scan/teacher" : "/attendance/scan/student";
-      const res = await api.post(ep, { qr_code:scannedQR, latitude:Number(scanLat), longitude:Number(scanLng) });
-      toast.success(res.data.message||"Absensi berhasil dicatat!");
-      setScannedQR(""); load();
-    } catch(e:any){ toast.error(e.response?.data?.message||"QR tidak valid / diluar jam absen"); }
-    finally { setScanLoading(false); }
+      const parts = qrCode.split(":");
+      const tipe = parts[1]; // 'siswa' | 'guru'
+      const ep = tipe === "guru" ? "/attendance/scan/teacher" : "/attendance/scan/student";
+      const res = await api.post(ep, { qr_code: qrCode, latitude: Number(scanLat), longitude: Number(scanLng) });
+      const data = res.data?.data || {};
+      setLastScanResult({ ...data, tipe, qrCode, ts: new Date() });
+      toast.success(res.data.message || "Absensi berhasil dicatat!");
+      setScannedQR("");
+      load();
+    } catch(e:any) {
+      const msg = e.response?.data?.message || "QR tidak valid / diluar jam absen";
+      setLastScanResult({ error: msg, qrCode, ts: new Date() });
+      toast.error(msg);
+    } finally { setScanLoading(false); }
   };
 
   const handleSaveConfig = async (e:React.FormEvent) => {
@@ -298,29 +328,98 @@ export default function AttendancePage() {
         {isAdmin && (
           <TabsContent value="scanner">
             <div className="grid gap-6 md:grid-cols-2">
-              <Card className="bg-card border-border/30">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2"><Scan className="h-5 w-5 text-primary"/>Terminal Scanner Gerbang</CardTitle>
-                  <CardDescription>Masukkan isi QR Code siswa/guru untuk mencatat kehadiran.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleGateScan} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label>Kode QR</Label>
-                      <Input placeholder="JURNAL_QR:siswa:3  atau  JURNAL_QR:guru:1" value={scannedQR} onChange={(e)=>setScannedQR(e.target.value)} className="font-mono text-sm"/>
-                      <p className="text-xs text-muted-foreground">Format: <code>JURNAL_QR:siswa:&#123;ID&#125;</code> atau <code>JURNAL_QR:guru:&#123;ID&#125;</code></p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5"><Label>Latitude</Label><Input value={scanLat} onChange={(e)=>setScanLat(e.target.value)}/></div>
-                      <div className="space-y-1.5"><Label>Longitude</Label><Input value={scanLng} onChange={(e)=>setScanLng(e.target.value)}/></div>
-                    </div>
-                    <Button type="submit" disabled={scanLoading} className="w-full gap-2 py-5">
-                      <Shield className="h-5 w-5"/>{scanLoading?"Memproses...":"Verifikasi & Catat Absen"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
+              {/* ── Scanner Panel ── */}
+              <div className="space-y-4">
+                <Card className="bg-card border-border/30">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2"><Scan className="h-5 w-5 text-primary"/>Scanner Gerbang Admin</CardTitle>
+                    <CardDescription>Aktifkan kamera atau input manual kode QR siswa/guru.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Camera Scanner */}
+                    <QrCameraScanner
+                      active={cameraActive}
+                      onToggle={() => setCameraActive((v) => !v)}
+                      onScan={handleCameraScan}
+                    />
 
+                    {/* Manual form */}
+                    <form onSubmit={handleGateScan} className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label>Kode QR (Manual)</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="JURNAL_QR:siswa:3  atau  JURNAL_QR:guru:1"
+                            value={scannedQR}
+                            onChange={(e) => setScannedQR(e.target.value)}
+                            className="font-mono text-sm flex-1"
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doScan(scannedQR); } }}
+                          />
+                          <Button type="submit" disabled={scanLoading || !scannedQR.trim()} className="shrink-0 gap-1.5">
+                            <Shield className="h-4 w-4" />{scanLoading ? '...' : 'Proses'}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Format: <code>JURNAL_QR:siswa:&#123;ID&#125;</code> atau <code>JURNAL_QR:guru:&#123;ID&#125;</code></p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5"/>Latitude</Label>
+                          <Input value={scanLat} onChange={(e) => setScanLat(e.target.value)} className="text-xs font-mono"/>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Longitude</Label>
+                          <Input value={scanLng} onChange={(e) => setScanLng(e.target.value)} className="text-xs font-mono"/>
+                        </div>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Last scan result */}
+                {lastScanResult && (
+                  <Card className={`border ${lastScanResult.error ? 'border-red-500/30 bg-red-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className={`text-sm flex items-center gap-2 ${lastScanResult.error ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {lastScanResult.error ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                        {lastScanResult.error ? 'Scan Gagal' : 'Scan Berhasil'}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-1.5 text-sm">
+                      {lastScanResult.error ? (
+                        <p className="text-red-400">{lastScanResult.error}</p>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Nama</span>
+                            <span className="font-semibold">{lastScanResult.guru?.nama || lastScanResult.siswa?.nama || '-'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Tipe</span>
+                            <Badge variant="outline" className="capitalize">{lastScanResult.tipe}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Status</span>
+                            <Badge variant="outline" className={STATUS_COLOR[lastScanResult.status] || ''}>{lastScanResult.status || '-'}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Waktu</span>
+                            <span className="font-mono text-xs">{lastScanResult.ts?.toLocaleTimeString('id-ID')}</span>
+                          </div>
+                          {lastScanResult.keterangan && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Keterangan</span>
+                              <span className="text-xs">{lastScanResult.keterangan}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1 font-mono break-all">{lastScanResult.qrCode}</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Info Panel */}
               <Card className="bg-card border-border/30">
                 <CardHeader><CardTitle className="text-base flex items-center gap-2"><Users className="h-5 w-5 text-amber-400"/>Mekanisme Absensi</CardTitle></CardHeader>
                 <CardContent className="space-y-4 text-sm text-muted-foreground">
@@ -339,9 +438,17 @@ export default function AttendancePage() {
                       <li>Status: H Hadir / S Sakit / I Izin / A Alpa</li>
                     </ul>
                   </div>
+                  <div className="space-y-1"><p className="font-semibold text-foreground">📷 Cara Pakai Kamera</p>
+                    <ul className="space-y-1 pl-4 list-disc">
+                      <li>Klik <strong>Aktifkan Kamera Scan</strong></li>
+                      <li>Arahkan kamera ke QR Code siswa/guru</li>
+                      <li>Sistem otomatis memproses saat QR terdeteksi</li>
+                      <li>Ada jeda 2.5 detik antar scan untuk mencegah duplikat</li>
+                    </ul>
+                  </div>
                   <div className="space-y-1"><p className="font-semibold text-foreground">⏰ Jam Berlaku</p>
                     <ul className="space-y-1 pl-4 list-disc">
-                      <li>Absen diluar jam yang dikonfigurasi akan ditolak</li>
+                      <li>Absen di luar jam yang dikonfigurasi akan ditolak</li>
                       <li>Admin dapat ubah jam di tab Jam Operasional</li>
                     </ul>
                   </div>
