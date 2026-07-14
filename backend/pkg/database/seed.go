@@ -9,6 +9,9 @@ import (
 )
 
 func SeedData(db *gorm.DB) {
+	// Always ensure PengaturanJam (attendance config) exists regardless of other data
+	seedPengaturanJam(db)
+
 	// Check if we already have users
 	var count int64
 	db.Model(&domain.User{}).Count(&count)
@@ -32,14 +35,26 @@ func SeedData(db *gorm.DB) {
 		db.Create(&users[i])
 	}
 
-	// 2. Seed Pengaturan Jam (Konfigurasi Jam Kerja Sistem)
-	pengaturanJamList := []domain.PengaturanJam{
+	// 2. Seed Pengaturan Jam handled by seedPengaturanJam above (always upsert)
+
+	log.Println("Database seeding completed successfully.")
+}
+
+// seedPengaturanJam ensures attendance time configs always exist (upsert by Tipe).
+// This runs on every startup so existing deployments get the defaults too.
+func seedPengaturanJam(db *gorm.DB) {
+	defaults := []domain.PengaturanJam{
 		{Tipe: "Guru", JamMasukMulai: "06:30", JamMasukSelesai: "07:30", JamPulangMulai: "15:00", JamPulangSelesai: "17:00"},
 		{Tipe: "Siswa", JamMasukMulai: "06:45", JamMasukSelesai: "07:15", JamPulangMulai: "14:30", JamPulangSelesai: "16:00"},
 	}
-	for i := range pengaturanJamList {
-		db.Create(&pengaturanJamList[i])
+	for _, jam := range defaults {
+		var existing domain.PengaturanJam
+		err := db.Where("tipe = ?", jam.Tipe).First(&existing).Error
+		if err != nil {
+			// Not found – create
+			db.Create(&jam)
+			log.Printf("Seeded PengaturanJam tipe=%s", jam.Tipe)
+		}
+		// Already exists – leave as-is (admin may have customised it)
 	}
-
-	log.Println("Database seeding completed successfully.")
 }

@@ -38,6 +38,8 @@ export default function AttendancePage() {
   const [scanLoading, setScanLoading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [lastScanResult, setLastScanResult] = useState<any>(null);
+  const [configMissing, setConfigMissing] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("");
   const scanCooldown = useRef(false);
   const [geoLat, setGeoLat] = useState<number|null>(null);
   const [geoLng, setGeoLng] = useState<number|null>(null);
@@ -80,6 +82,18 @@ export default function AttendancePage() {
         ]);
         if(c1.data.data) setCfgGuru(c1.data.data);
         if(c2.data.data) setCfgSiswa(c2.data.data);
+        // auto-init config if missing
+        if (!c1.data.data || !c2.data.data) {
+          setConfigMissing(true);
+          try {
+            if (!c1.data.data) await api.put("/attendance/config/Guru", { jam_masuk_mulai:"06:30", jam_masuk_selesai:"07:30", jam_pulang_mulai:"15:00", jam_pulang_selesai:"17:00" });
+            if (!c2.data.data) await api.put("/attendance/config/Siswa", { jam_masuk_mulai:"06:45", jam_masuk_selesai:"07:15", jam_pulang_mulai:"14:30", jam_pulang_selesai:"16:00" });
+            setConfigMissing(false);
+            toast.success("Konfigurasi jam absensi berhasil dibuat otomatis!");
+          } catch { /* will be set manually */ }
+        } else {
+          setConfigMissing(false);
+        }
       }
     } catch { toast.error("Gagal memuat data absensi"); }
     finally { setLoading(false); }
@@ -144,6 +158,9 @@ export default function AttendancePage() {
       load();
     } catch(e:any) {
       const msg = e.response?.data?.message || "QR tidak valid / diluar jam absen";
+      if (msg.toLowerCase().includes("not configured") || msg.toLowerCase().includes("settings")) {
+        setConfigMissing(true);
+      }
       setLastScanResult({ error: msg, qrCode, ts: new Date() });
       toast.error(msg);
     } finally { setScanLoading(false); }
@@ -180,7 +197,21 @@ export default function AttendancePage() {
         <p className="text-muted-foreground text-sm">Kelola kehadiran harian, scan QR gerbang sekolah, dan riwayat absen.</p>
       </div>
 
-      <Tabs defaultValue={isSiswa||isGuru?"qr_saya":"scanner"} className="space-y-4">
+      {/* Config missing banner */}
+      {isAdmin && configMissing && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <AlertCircle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-300">Konfigurasi jam absensi belum diatur</p>
+            <p className="text-xs text-amber-400/80 mt-0.5">Sistem tidak dapat memproses absensi. Klik tombol di bawah untuk mengatur jam masuk dan pulang.</p>
+          </div>
+          <Button size="sm" variant="outline" className="border-amber-500/50 text-amber-300 hover:bg-amber-500/20 shrink-0" onClick={() => setActiveTab("pengaturan")}>
+            Atur Sekarang
+          </Button>
+        </div>
+      )}
+
+      <Tabs value={activeTab || (isSiswa||isGuru ? "qr_saya" : "scanner")} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-card border border-border/20 p-1 rounded-xl">
           {(isGuru||isSiswa) && <TabsTrigger value="qr_saya" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white"><QrCode className="h-4 w-4 mr-1.5"/>QR Code Saya</TabsTrigger>}
           <TabsTrigger value="riwayat" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white"><Calendar className="h-4 w-4 mr-1.5"/>Riwayat Kehadiran</TabsTrigger>
