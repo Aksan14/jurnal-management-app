@@ -15,8 +15,11 @@ backend/main
 backend/tmp/
 backend/*.exe
 backend/*.out
-!/backend/uploads/
-!/backend/uploads/**
+
+# Uploads – keep folder structure, ignore all files inside
+backend/uploads/**
+!backend/uploads/**/
+!backend/uploads/**/.gitkeep
 
 # ========================
 # Frontend (Next.js)
