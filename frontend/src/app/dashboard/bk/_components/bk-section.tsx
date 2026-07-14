@@ -17,7 +17,9 @@ import { Badge } from "@/components/ui/badge";
 
 type BKTab = "konseling" | "pelanggaran" | "prestasi" | "psikotes" | "proyek";
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api").replace("/api", "");
+import { getBackendUrl } from "@/lib/utils";
+
+const BACKEND_URL = getBackendUrl();
 
 const tabConfig: Record<BKTab, { title: string; description: string; endpoint: string; dialogTitle: string }> = {
   konseling: {

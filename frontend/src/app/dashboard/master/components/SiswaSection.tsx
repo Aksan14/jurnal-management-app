@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import { getBackendUrl } from "@/lib/utils";
+
+const BACKEND_URL = getBackendUrl();
 import { toast } from "sonner";
 import { 
   Plus, 
@@ -207,7 +210,7 @@ export default function SiswaSection({ search, isKepsek }: SiswaSectionProps) {
     setEditMode(true);
     setSelectedItem(item);
     setFormErrors({});
-    setFotoPreview(item.foto_url ? `http://localhost:8080${item.foto_url}` : "");
+    setFotoPreview(item.foto_url ? `${BACKEND_URL}${item.foto_url}` : "");
     setFormData({
       nama: item.nama || "",
       nisn: item.nisn || "",
@@ -352,7 +355,7 @@ export default function SiswaSection({ search, isKepsek }: SiswaSectionProps) {
                 <TableCell>
                   {item.foto_url ? (
                     <img
-                      src={`http://localhost:8080${item.foto_url}`}
+                      src={`${BACKEND_URL}${item.foto_url}`}
                       alt={item.nama}
                       className="w-9 h-9 rounded-full object-cover border-2 border-primary/30"
                       onError={(e) => {
@@ -414,7 +417,7 @@ export default function SiswaSection({ search, isKepsek }: SiswaSectionProps) {
             <div className="space-y-6 py-2">
               <div className="flex items-center gap-4 p-4 rounded-xl bg-[#161a2b] border border-border/20">
                 {detailSiswa.foto_url ? (
-                  <img src={`http://localhost:8080${detailSiswa.foto_url}`} alt={detailSiswa.nama} className="w-16 h-16 rounded-full object-cover border-2 border-primary" />
+                  <img src={`${BACKEND_URL}${detailSiswa.foto_url}`} alt={detailSiswa.nama} className="w-16 h-16 rounded-full object-cover border-2 border-primary" />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xl font-bold border border-primary/20">
                     {detailSiswa.nama?.charAt(0).toUpperCase()}

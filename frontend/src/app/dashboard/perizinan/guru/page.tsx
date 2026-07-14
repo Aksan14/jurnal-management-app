@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { getBackendUrl } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 import { toast } from "sonner";
 import { Plus, Search, Calendar, CheckCircle, XCircle, Paperclip, Upload, Eye, X as XIcon } from "lucide-react";
@@ -31,7 +32,7 @@ export default function PerizinanGuruPage() {
   const [buktiFile, setBuktiFile] = useState<File | null>(null);
   const [buktiPreview, setBuktiPreview] = useState<string>("");
   const buktiInputRef = React.useRef<HTMLInputElement>(null);
-  const BACKEND_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api").replace("/api", "");
+  const BACKEND_URL = getBackendUrl();
   const [formData, setFormData] = useState<any>({
     jenis_izin: "Sakit",
     tanggal_mulai: new Date().toISOString().substring(0, 10),

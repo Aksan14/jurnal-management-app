@@ -12,8 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { User, Camera, Save, Lock, Phone, Mail, BookOpen, GraduationCap, Users, ShieldCheck, X, ZoomIn } from "lucide-react";
+import { getBackendUrl } from "@/lib/utils";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+const BACKEND_URL = getBackendUrl();
 
 interface ProfileData {
   id: number; username: string; email: string; role: string;

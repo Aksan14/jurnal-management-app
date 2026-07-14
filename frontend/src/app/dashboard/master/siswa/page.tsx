@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth';
+import { getBackendUrl } from '@/lib/utils';
+
+const BACKEND_URL = getBackendUrl();
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -220,7 +223,7 @@ export default function AdminSiswaPage() {
       status: siswa.status || 'Aktif',
     });
     setFotoFile(null);
-    setFotoPreview(siswa.foto_url ? `http://localhost:8080${siswa.foto_url}` : '');
+    setFotoPreview(siswa.foto_url ? `${BACKEND_URL}${siswa.foto_url}` : '');
     setSelectedId(siswa.id);
     setEditMode(true);
     setOpen(true);
