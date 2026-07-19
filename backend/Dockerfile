@@ -1,37 +1,37 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM golang:1.25-alpine AS builder
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
 
-# Install build deps
-RUN apk add --no-cache git ca-certificates tzdata
-
-# Download dependencies first (cache layer)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source
 COPY . .
 
-# Build binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-w -s" -o server ./cmd/api/main.go
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM alpine:3.20
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Runtime deps
-RUN apk add --no-cache ca-certificates tzdata
-
-# Copy binary and assets from builder
 COPY --from=builder /app/server .
-COPY --from=builder /app/uploads ./uploads
 
-# Create uploads sub-directories
-RUN mkdir -p uploads/bukti uploads/foto uploads/perizinan uploads/prestasi uploads/psikotes
+# Copy timezone data
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+
+RUN chown -R appuser:appgroup /app
+USER appuser
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:8080/health || exit 1
 
 CMD ["./server"]

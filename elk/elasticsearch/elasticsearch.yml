@@ -1,0 +1,23 @@
+cluster.name: "jurnal-cluster"
+node.name: "es-node-1"
+
+network.host: 0.0.0.0
+http.port: 9200
+
+# Disable security for development (enable for production)
+xpack.security.enabled: false
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# Single node discovery (change for multi-node cluster)
+discovery.type: single-node
+
+# Memory settings
+bootstrap.memory_lock: true
+
+# Index settings
+action.auto_create_index: true
+action.destructive_requires_name: true
+
+# Logging
+logger.level: warn

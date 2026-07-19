@@ -1,18 +1,24 @@
 package middleware
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/asan14/jurnal-apps-backend/config"
 	"github.com/asan14/jurnal-apps-backend/internal/service"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 )
 
-// JWTAuthMiddleware parses JWT token and sets claims in context
-func JWTAuthMiddleware(cfg *config.Config) echo.MiddlewareFunc {
+// JWTAuthMiddleware parses JWT token and sets claims in context.
+// If rdb is non-nil, it also checks whether the token has been blacklisted
+// (e.g. after logout).
+func JWTAuthMiddleware(cfg *config.Config, rdb *redis.Client) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
@@ -26,8 +32,17 @@ func JWTAuthMiddleware(cfg *config.Config) echo.MiddlewareFunc {
 			}
 
 			tokenStr := parts[1]
-			claims := &service.JWTClaims{}
 
+			// Check Redis blacklist (token revoked on logout)
+			if rdb != nil {
+				key := fmt.Sprintf("blacklist:%s", tokenStr)
+				val, _ := rdb.Get(context.Background(), key).Result()
+				if val == "1" {
+					return echo.NewHTTPError(http.StatusUnauthorized, "Token has been revoked")
+				}
+			}
+
+			claims := &service.JWTClaims{}
 			token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 				return []byte(cfg.JWTSecret), nil
 			})
@@ -39,6 +54,8 @@ func JWTAuthMiddleware(cfg *config.Config) echo.MiddlewareFunc {
 			c.Set("user_id", claims.UserID)
 			c.Set("username", claims.Username)
 			c.Set("role", claims.Role)
+			c.Set("raw_token", tokenStr)                          // for logout blacklisting
+			c.Set("token_ttl", time.Until(claims.ExpiresAt.Time)) // remaining lifetime
 
 			return next(c)
 		}

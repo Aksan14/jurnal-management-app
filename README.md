@@ -2,9 +2,336 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue?style=for-the-badge&logo=go)](https://golang.org)
 [![Next.js Version](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=nextdotjs)](https://nextjs.org)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql)](https://mysql.com)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker)](https://docker.com)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis)](https://redis.io)
+[![Nginx](https://img.shields.io/badge/Nginx-Load_Balancer-009639?style=for-the-badge&logo=nginx)](https://nginx.org)
+[![Elastic](https://img.shields.io/badge/Elastic-8.14-005571?style=for-the-badge&logo=elasticsearch)](https://elastic.co)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker)](https://docker.com)
+
+**Jurnal & Attendance Management System (JAMS)** adalah platform sistem informasi manajemen sekolah terintegrasi berbasis web. Aplikasi ini dirancang untuk mendigitalisasi pencatatan jurnal mengajar guru, absensi kehadiran siswa & guru berbasis QR Code/GPS, perizinan, bimbingan konseling (BK), hingga pengolahan laporan akademik secara real-time.
+
+---
+
+## 🏗️ Arsitektur Sistem
+
+```mermaid
+graph TD
+    User([Pengguna: Admin/Guru/Siswa/Ortu]) -->|HTTP :80| Nginx[Nginx\nLoad Balancer]
+
+    subgraph "App Tier — Horizontal Scaling"
+        Nginx -->|Round-Robin| B1[Backend\nInstance 1]
+        Nginx -->|Round-Robin| B2[Backend\nInstance 2]
+        Nginx -->|Round-Robin| B3[Backend\nInstance 3]
+        Nginx -->|Round-Robin| FE1[Frontend\nInstance 1]
+        Nginx -->|Round-Robin| FE2[Frontend\nInstance 2]
+    end
+
+    subgraph "Data Tier"
+        B1 & B2 & B3 -->|Query| DB[(MySQL 8.0)]
+        B1 & B2 & B3 -->|Cache / Blacklist| RDB[(Redis 7)]
+    end
+
+    subgraph "Observability — ELK Stack"
+        Filebeat -->|Ship logs| Logstash
+        Logstash -->|Index| ES[(Elasticsearch)]
+        ES --> Kibana[Kibana\n:5601]
+    end
+
+    B1 & B2 & B3 & Nginx -.->|Container Logs| Filebeat
+```
+
+---
+
+## 🛠️ Teknologi & Stack
+
+| Layer | Teknologi | Keterangan |
+|---|---|---|
+| **Backend** | Go 1.21 + Echo v4 | REST API modular, RBAC, JWT |
+| **Frontend** | Next.js 15 + TypeScript | App Router, standalone Docker output |
+| **Database** | MySQL 8.0 + GORM | ORM dengan AutoMigrate & Seeder |
+| **Cache / Session** | Redis 7 | Token blacklist (logout), dashboard cache |
+| **Load Balancer** | Nginx 1.25 | Reverse proxy, rate limiting, JSON logging |
+| **Monitoring** | Elasticsearch 8.14 | Full-text log search & analytics |
+| **Log Pipeline** | Logstash 8.14 + Filebeat 8.14 | Kumpulkan → proses → kirim ke ES |
+| **Visualisasi** | Kibana 8.14 | Dashboard monitoring & alerting |
+| **Styling** | Tailwind CSS + Shadcn/UI | Desain modern, dark/light mode |
+| **Auth** | JWT Access (2 jam) + Refresh (7 hari) | Stateless, revokasi via Redis |
+| **Container** | Docker + Docker Compose | Orchestration + Swarm untuk produksi |
+
+---
+
+## 📁 Struktur Folder Proyek
+
+```
+manajemenjurnal-app/
+├── docker-compose.yml          # Stack lengkap (dev/staging)
+├── docker-compose.prod.yml     # Override produksi: replicas + resource limits
+├── .env.example                # Template variabel environment (root)
+│
+├── backend/                    # Go/Echo REST API (port 8080 internal)
+│   ├── Dockerfile              # Multi-stage build → alpine runtime
+│   ├── cmd/api/main.go         # Entrypoint: init DB, Redis, Echo
+│   ├── config/config.go        # Baca semua env vars termasuk Redis
+│   ├── internal/
+│   │   ├── domain/             # Entity struct & Repository interface
+│   │   ├── dto/                # Request/Response DTO
+│   │   ├── handler/            # HTTP Handler (termasuk Logout + Dashboard cache)
+│   │   ├── middleware/         # JWT (+ Redis blacklist check) & RBAC
+│   │   ├── repository/         # GORM query implementation
+│   │   └── service/            # Business logic
+│   ├── pkg/
+│   │   └── database/
+│   │       ├── db.go           # MySQL init + AutoMigrate
+│   │       ├── redis.go        # Redis init, BlacklistToken, cacheGet/Set
+│   │       └── seed.go         # Data seeder awal
+│   └── routes/routes.go        # API routing dengan rdb injected
+│
+├── frontend/                   # Next.js 15 (port 3000 internal)
+│   ├── Dockerfile              # Multi-stage: deps → build → standalone runner
+│   ├── next.config.ts          # output: "standalone" untuk Docker
+│   └── src/
+│       ├── app/                # App Router (dashboard, login, dll)
+│       ├── components/ui/      # Shadcn/UI komponen
+│       ├── lib/api.ts          # Axios client → /api (melalui Nginx)
+│       ├── providers/          # React Query + Theme provider
+│       └── stores/auth.ts      # Zustand auth store
+│
+├── nginx/
+│   └── nginx.conf              # Upstream pool, rate limit, JSON access log
+│
+└── elk/
+    ├── elasticsearch/elasticsearch.yml
+    ├── logstash/
+    │   ├── logstash.yml
+    │   └── pipeline/logstash.conf   # Parse log Go/Nginx/MySQL → Elasticsearch
+    ├── kibana/kibana.yml
+    └── filebeat/filebeat.yml         # Collect Docker container logs
+```
+
+---
+
+## ✨ Fitur Utama
+
+### 1. 📖 Jurnal Mengajar & Presensi
+- Pencatatan jurnal harian guru per pertemuan & mapel
+- Presensi siswa (Hadir/Sakit/Izin/Alpa) per kelas
+- Request mundur jurnal dengan approval admin
+
+### 2. 📷 Absensi QR & GPS
+- QR Code unik per siswa dan guru
+- Scan gerbang: deteksi otomatis **Masuk** / **Pulang** berdasarkan `jam_pulang_mulai`
+- Waktu scan (`waktu_scan`) dan tipe absen (`masuk`/`pulang`) tersimpan di DB
+- Self check-in guru via GPS Geofencing
+
+### 3. 📋 Perizinan Siswa & Guru
+
+### 4. 🧠 Bimbingan Konseling, Pelanggaran & Prestasi
+
+### 5. 📊 Dashboard Analitik Real-time
+- Admin: 8 stat cards + bar chart + pie chart
+- Guru/Wali Kelas: status check-in, jurnal bulan ini, kehadiran rate
+- Orang Tua: ringkasan per anak (kehadiran, pelanggaran, izin pending)
+- **Semua dashboard di-cache Redis 5 menit** untuk performa optimal
+
+### 6. 🔐 Keamanan Auth
+- Logout aktif merevokasi token via Redis blacklist
+- Setiap request JWT dicek ke Redis sebelum divalidasi
+
+---
+
+## 🚀 Panduan Instalasi
+
+### A. Development Lokal (tanpa Docker)
+
+**Prasyarat:** Go 1.21+, Node.js 20+, MySQL 8.0, Redis 7
+
+#### 1. Clone & Setup Environment
+
+```bash
+git clone https://github.com/Aksan14/jurnal-management-app.git
+cd jurnal-management-app
+
+# Salin template env ke root project
+cp .env.example .env
+```
+
+Edit `.env` dan sesuaikan:
+
+```env
+# Database
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=jurnal_db
+
+# Redis (kosongkan jika tidak pakai Redis lokal)
+REDIS_ADDR=127.0.0.1:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# JWT
+JWT_SECRET=ganti_dengan_string_acak_minimal_32_karakter
+JWT_REFRESH_SECRET=ganti_dengan_string_acak_lain_minimal_32_karakter
+
+# SMTP (opsional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+```
+
+#### 2. Jalankan Backend
+
+```bash
+cd backend
+go mod tidy
+go run cmd/api/main.go
+# Backend berjalan di http://localhost:8080
+```
+
+> Database `jurnal_db` dibuat otomatis dan di-seed dengan akun default bila tabel masih kosong.
+
+#### 3. Jalankan Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+# Frontend berjalan di http://localhost:3000
+```
+
+> Pastikan `NEXT_PUBLIC_API_URL` di `.env` frontend mengarah ke `http://localhost:8080/api` saat dev lokal.
+
+---
+
+### B. Docker Compose — Semua Service Sekaligus (Direkomendasikan)
+
+**Prasyarat:** Docker Engine 24+ dan Docker Compose v2
+
+```bash
+git clone https://github.com/Aksan14/jurnal-management-app.git
+cd jurnal-management-app
+
+# 1. Salin dan isi environment variable
+cp .env.example .env
+# Edit .env — minimal isi DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, JWT_REFRESH_SECRET
+
+# 2. Build image dan jalankan semua service
+docker compose up -d --build
+
+# 3. Cek status semua container
+docker compose ps
+```
+
+Service yang berjalan:
+
+| Service | Port Publik | Keterangan |
+|---|---|---|
+| Nginx | `80` | Entry point semua traffic |
+| Backend | — (internal) | Go API, di-proxy Nginx via `/api/` |
+| Frontend | — (internal) | Next.js, di-proxy Nginx via `/` |
+| MySQL | `3306` | Database utama |
+| Redis | `6379` | Cache & token blacklist |
+| Elasticsearch | `9200` | Log storage |
+| Kibana | `5601` | Monitoring dashboard |
+| Logstash | `5044`, `9600` | Log pipeline |
+
+Buka **`http://localhost`** untuk mengakses aplikasi.  
+Buka **`http://localhost:5601`** untuk Kibana monitoring.
+
+---
+
+### C. Production — Horizontal & Vertical Scaling
+
+#### Opsi 1: Docker Compose dengan `--scale`
+
+```bash
+# Scale backend ke 3 instance, frontend ke 2 instance
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  up -d --scale backend=3 --scale frontend=2
+```
+
+#### Opsi 2: Docker Swarm (Direkomendasikan untuk Produksi)
+
+```bash
+# Inisialisasi Swarm pada server manager
+docker swarm init
+
+# Deploy stack dengan konfigurasi produksi
+docker stack deploy \
+  -c docker-compose.yml \
+  -c docker-compose.prod.yml \
+  jurnal
+```
+
+`docker-compose.prod.yml` mendefinisikan:
+
+| Service | Replicas | CPU Limit | RAM Limit |
+|---|---|---|---|
+| backend | **3** | 1.0 core/inst | 512 MB/inst |
+| frontend | **2** | 0.75 core | 512 MB |
+| mysql | 1 | 2.0 core | 2 GB |
+| redis | 1 | 0.5 core | 512 MB |
+| elasticsearch | 1 | 2.0 core | 3 GB |
+
+---
+
+## 🔑 Akun Default (Seed Data)
+
+Password default: **`Admin123!`**
+
+| Username | Role | Akses |
+|---|---|---|
+| `admin` | `admin` | Full access: master data, scan absensi, laporan |
+
+> **Penting:** Segera ganti password default setelah login pertama.
+
+---
+
+## 📡 API Endpoints Penting
+
+Semua request melalui Nginx: `http://localhost/api/...`
+
+| Method | Endpoint | Auth | Keterangan |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | — | Login, dapat access + refresh token |
+| `POST` | `/api/auth/logout` | JWT | **Revoke token via Redis blacklist** |
+| `POST` | `/api/auth/refresh` | — | Perbarui access token |
+| `GET` | `/api/reports/dashboard` | JWT | Dashboard admin/guru/siswa (Redis cache) |
+| `GET` | `/api/reports/dashboard/guru` | JWT | Dashboard khusus guru (Redis cache) |
+| `GET` | `/api/reports/dashboard/ortu` | JWT | Dashboard orang tua (Redis cache) |
+| `POST` | `/api/attendance/scan/student` | JWT | Scan QR siswa → deteksi masuk/pulang |
+| `POST` | `/api/attendance/scan/teacher` | JWT | Scan QR guru |
+
+---
+
+## 🔒 Keamanan Production
+
+1. **Ganti semua secret di `.env`** — `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DB_PASSWORD`, `REDIS_PASSWORD` wajib diganti dengan string acak yang kuat.
+2. **Aktifkan HTTPS** — Pasang SSL certificate di Nginx (Let's Encrypt / Certbot).
+3. **Sembunyikan port internal** — Jangan expose `3306`, `6379`, `9200` ke publik. Gunakan firewall (ufw/iptables).
+4. **Aktifkan Elasticsearch Security** — Untuk produksi, set `xpack.security.enabled=true` di `elk/elasticsearch/elasticsearch.yml` dan buat password ES.
+5. **Rotasi JWT Secret** — Jika secret bocor, ganti di `.env` dan restart backend. Semua sesi aktif otomatis tidak valid.
+
+---
+
+## 📊 Monitoring dengan Kibana
+
+Setelah stack berjalan, akses **`http://localhost:5601`** dan:
+
+1. Buka **Discover** → pilih index pattern `jurnal-logs-*`
+2. Filter log per service: `container.name: backend` / `container.name: nginx`
+3. Buat **Dashboard** untuk memantau:
+   - Request rate & response time (dari Nginx access log)
+   - Error rate backend (level: `error`)
+   - Query lambat MySQL
+
+---
+
+## 📝 Lisensi
+Proyek ini dilisensikan di bawah lisensi internal institusi sekolah. Seluruh hak cipta dilindungi undang-undang © 2026.
+
 
 **Jurnal & Attendance Management System (JAMS)** adalah platform sistem informasi manajemen sekolah terintegrasi berbasis web. Aplikasi ini dirancang untuk mendigitalisasi pencatatan jurnal mengajar guru, absensi kehadiran siswa & guru berbasis QR Code/GPS, perizinan, bimbingan konseling (BK), hingga pengolahan laporan akademik secara real-time.
 

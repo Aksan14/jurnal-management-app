@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +13,7 @@ import (
 	"github.com/asan14/jurnal-apps-backend/internal/middleware"
 	"github.com/asan14/jurnal-apps-backend/internal/service"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 )
 
 // Response Helper
@@ -56,10 +60,25 @@ func parsePaginationParam(c echo.Context) domain.PaginationParam {
 // ----------------------------------------------------
 type AuthHandler struct {
 	authService service.AuthService
+	rdb         *redis.Client
 }
 
-func NewAuthHandler(authService service.AuthService) *AuthHandler {
-	return &AuthHandler{authService}
+func NewAuthHandler(authService service.AuthService, rdb *redis.Client) *AuthHandler {
+	return &AuthHandler{authService, rdb}
+}
+
+// Logout revokes the current access token by adding it to the Redis blacklist.
+func (h *AuthHandler) Logout(c echo.Context) error {
+	rawToken, _ := c.Get("raw_token").(string)
+	if rawToken != "" && h.rdb != nil {
+		ttl, _ := c.Get("token_ttl").(time.Duration)
+		if ttl <= 0 {
+			ttl = 2 * time.Hour
+		}
+		key := fmt.Sprintf("blacklist:%s", rawToken)
+		h.rdb.Set(context.Background(), key, "1", ttl)
+	}
+	return respond[any](c, http.StatusOK, true, "Logged out successfully", nil, nil)
 }
 
 func (h *AuthHandler) Login(c echo.Context) error {
@@ -1513,10 +1532,34 @@ func (h *NilaiHandler) List(c echo.Context) error {
 type ReportHandler struct {
 	reportService service.ReportService
 	siswaRepo     domain.SiswaRepository
+	rdb           *redis.Client
 }
 
-func NewReportHandler(reportService service.ReportService, siswaRepo domain.SiswaRepository) *ReportHandler {
-	return &ReportHandler{reportService, siswaRepo}
+func NewReportHandler(reportService service.ReportService, siswaRepo domain.SiswaRepository, rdb *redis.Client) *ReportHandler {
+	return &ReportHandler{reportService, siswaRepo, rdb}
+}
+
+// cacheGet attempts to read a cached JSON value from Redis.
+func (h *ReportHandler) cacheGet(key string, dest any) bool {
+	if h.rdb == nil {
+		return false
+	}
+	raw, err := h.rdb.Get(context.Background(), key).Result()
+	if err != nil || raw == "" {
+		return false
+	}
+	return json.Unmarshal([]byte(raw), dest) == nil
+}
+
+// cacheSet stores a value as JSON in Redis with the given TTL.
+func (h *ReportHandler) cacheSet(key string, val any, ttl time.Duration) {
+	if h.rdb == nil {
+		return
+	}
+	b, err := json.Marshal(val)
+	if err == nil {
+		h.rdb.Set(context.Background(), key, string(b), ttl)
+	}
 }
 
 func (h *ReportHandler) GetStats(c echo.Context) error {
@@ -1558,30 +1601,52 @@ func (h *ReportHandler) GetStats(c echo.Context) error {
 		}
 		return respond(c, http.StatusOK, true, "Success", res, nil)
 	default:
-		// admin, super_admin, kepsek, guru, wali_kelas
+		// admin, super_admin, kepsek, guru, wali_kelas — cache 5 minutes
+		const adminCacheKey = "dashboard:admin"
+		var cached any
+		if h.cacheGet(adminCacheKey, &cached) {
+			return respond(c, http.StatusOK, true, "Success", cached, nil)
+		}
 		res, err := h.reportService.GetAdminDashboard()
 		if err != nil {
 			return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
 		}
+		h.cacheSet(adminCacheKey, res, 5*time.Minute)
 		return respond(c, http.StatusOK, true, "Success", res, nil)
 	}
 }
 
 func (h *ReportHandler) GetOrtuDashboard(c echo.Context) error {
 	userID, _, _ := middleware.GetCurrentUser(c)
+	cacheKey := fmt.Sprintf("dashboard:ortu:%d", userID)
+
+	var cached any
+	if h.cacheGet(cacheKey, &cached) {
+		return respond(c, http.StatusOK, true, "Success", cached, nil)
+	}
+
 	res, err := h.reportService.GetOrtuDashboard(userID)
 	if err != nil {
 		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
 	}
+	h.cacheSet(cacheKey, res, 5*time.Minute)
 	return respond(c, http.StatusOK, true, "Success", res, nil)
 }
 
 func (h *ReportHandler) GetGuruDashboard(c echo.Context) error {
 	userID, _, _ := middleware.GetCurrentUser(c)
+	cacheKey := fmt.Sprintf("dashboard:guru:%d", userID)
+
+	var cached any
+	if h.cacheGet(cacheKey, &cached) {
+		return respond(c, http.StatusOK, true, "Success", cached, nil)
+	}
+
 	res, err := h.reportService.GetGuruDashboard(userID)
 	if err != nil {
 		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
 	}
+	h.cacheSet(cacheKey, res, 5*time.Minute)
 	return respond(c, http.StatusOK, true, "Success", res, nil)
 }
 

@@ -20,6 +20,12 @@ func main() {
 	// Initialize Database (AutoMigrate & Seed on empty DB)
 	db := database.InitDB(cfg)
 
+	// Initialize Redis (optional — skipped if REDIS_ADDR not set)
+	rdb := database.InitRedis(cfg)
+	if rdb != nil {
+		defer rdb.Close()
+	}
+
 	// Create Echo Instance
 	e := echo.New()
 
@@ -37,7 +43,7 @@ func main() {
 	e.Validator = validator.NewCustomValidator()
 
 	// Setup API Routes
-	routes.SetupRoutes(e, db, cfg)
+	routes.SetupRoutes(e, db, cfg, rdb)
 
 	// Start Echo HTTP server
 	port := cfg.Port

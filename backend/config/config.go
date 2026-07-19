@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -18,6 +19,9 @@ type Config struct {
 	DBSSLMode        string
 	JWTSecret        string
 	JWTRefreshSecret string
+	RedisAddr        string
+	RedisPassword    string
+	RedisDB          int
 	SMTPHost         string
 	SMTPPort         string
 	SMTPUser         string
@@ -43,6 +47,9 @@ func LoadConfig(path string) *Config {
 		DBSSLMode:        getEnv("DB_SSLMODE", "disable"),
 		JWTSecret:        getEnv("JWT_SECRET", "supersecretaccesskey123!"),
 		JWTRefreshSecret: getEnv("JWT_REFRESH_SECRET", "supersecretrefreshkey456!"),
+		RedisAddr:        getEnv("REDIS_ADDR", ""),
+		RedisPassword:    getEnv("REDIS_PASSWORD", ""),
+		RedisDB:          getEnvInt("REDIS_DB", 0),
 		SMTPHost:         getEnv("SMTP_HOST", "smtp.gmail.com"),
 		SMTPPort:         getEnv("SMTP_PORT", "587"),
 		SMTPUser:         getEnv("SMTP_USER", ""),
@@ -55,6 +62,15 @@ func LoadConfig(path string) *Config {
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if value, ok := os.LookupEnv(key); ok {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
 	}
 	return fallback
 }

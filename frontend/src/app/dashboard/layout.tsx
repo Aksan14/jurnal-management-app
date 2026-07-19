@@ -21,7 +21,8 @@ import {
   Settings,
   ChevronDown,
   FileBarChart2,
-  FileUp
+  FileUp,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -77,6 +78,12 @@ const sidebarItems: SidebarItem[] = [
     href: "/dashboard/perizinan",
     icon: FileCheck,
     roles: ["super_admin", "admin", "guru", "siswa", "guru_bk", "wali_kelas", "kepsek"],
+  },
+  {
+    title: "Penilaian",
+    href: "/dashboard/nilai",
+    icon: Star,
+    roles: ["super_admin", "admin", "guru", "wali_kelas", "siswa"],
   },
   {
     title: "Laporan & Log",

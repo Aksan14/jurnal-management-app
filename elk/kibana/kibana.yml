@@ -1,0 +1,17 @@
+http.host: 0.0.0.0
+http.port: 5601
+
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+server.name: "jurnal-kibana"
+server.host: "0.0.0.0"
+
+# Monitoring
+monitoring.enabled: true
+monitoring.cluster_uuid: ""
+
+# Logging
+logging.level: warn
+logging.root.level: warn
+
+# Telemetry
+telemetry.enabled: false

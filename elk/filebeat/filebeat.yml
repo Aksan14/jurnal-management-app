@@ -1,0 +1,35 @@
+filebeat.inputs:
+  # ── Collect Docker container logs ─────────────────────────────────────────
+  - type: container
+    enabled: true
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+      - decode_json_fields:
+          fields: ["message"]
+          process_array: false
+          max_depth: 2
+          target: ""
+          overwrite_keys: true
+          add_error_key: true
+
+# ── Processors (global) ───────────────────────────────────────────────────────
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["agent.ephemeral_id", "ecs"]
+      ignore_missing: true
+
+# ── Output: Logstash ─────────────────────────────────────────────────────────
+output.logstash:
+  hosts: ["logstash:5044"]
+  bulk_max_size: 2048
+  worker: 2
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+logging.level: warning
+logging.to_files: false
+logging.metrics.enabled: false

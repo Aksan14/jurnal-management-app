@@ -7,10 +7,11 @@ import (
 	"github.com/asan14/jurnal-apps-backend/internal/repository"
 	"github.com/asan14/jurnal-apps-backend/internal/service"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
+func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, rdb *redis.Client) {
 	userRepo := repository.NewUserRepository(db)
 	guruRepo := repository.NewGuruRepository(db)
 	siswaRepo := repository.NewSiswaRepository(db)
@@ -53,14 +54,14 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 	pesanService := service.NewPesanService(pesanRepo, userRepo)
 
 	// 3. Handlers
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, rdb)
 	masterHandler := handler.NewMasterHandler(masterService)
 	jurnalHandler := handler.NewJurnalHandler(jurnalService)
 	attendanceHandler := handler.NewAttendanceHandler(attendanceService)
 	bkHandler := handler.NewBKHandler(bkService)
 	perizinanHandler := handler.NewPerizinanHandler(perizinanService, guruRepo, mengajarRepo, siswaRepo)
 	nilaiHandler := handler.NewNilaiHandler(nilaiService)
-	reportHandler := handler.NewReportHandler(reportService, siswaRepo)
+	reportHandler := handler.NewReportHandler(reportService, siswaRepo, rdb)
 	qrHandler := handler.NewQRHandler(qrService)
 	fileHandler := handler.NewFileHandler(fileService)
 	profileHandler := handler.NewProfileHandler(profileService)
@@ -75,10 +76,11 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config) {
 	authGroup.POST("/refresh", authHandler.RefreshToken)
 
 	// Protected Routes (JWT required)
-	jwtMiddleware := middleware.JWTAuthMiddleware(cfg)
+	jwtMiddleware := middleware.JWTAuthMiddleware(cfg, rdb)
 	api.Use(jwtMiddleware)
 
 	// Auth routes yang butuh JWT (di bawah middleware)
+	api.POST("/auth/logout", authHandler.Logout)
 	api.GET("/auth/profile", authHandler.GetProfile)
 	api.POST("/auth/change-password", authHandler.ChangePassword)
 
