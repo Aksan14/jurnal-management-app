@@ -1,0 +1,40 @@
+# ── Metricbeat: Docker Container CPU/RAM/Network Metrics ─────────────────────
+metricbeat.modules:
+
+  # ── Prometheus Module: scrape cAdvisor (per-container CPU/RAM/Network) ─────
+  # cAdvisor membaca data langsung dari cgroup — tidak butuh Docker API
+  - module: prometheus
+    period: 10s
+    hosts: ["cadvisor:8080"]
+    metrics_path: /metrics
+    enabled: true
+
+  # ── System Module: metrik HOST ──────────────────────────────────────────────
+  - module: system
+    metricsets:
+      - cpu         # total vCPU usage host
+      - memory      # total RAM host
+      - load        # load average 1m/5m/15m
+      - network     # network I/O host
+    period: 15s
+    enabled: true
+
+# ── Output: Elasticsearch ─────────────────────────────────────────────────────
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "metricbeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+# ── Kibana: auto-import dashboard ─────────────────────────────────────────────
+setup.kibana:
+  host: "http://kibana:5601"
+setup.dashboards.enabled: true
+setup.template.enabled: true
+setup.template.name: "metricbeat"
+setup.template.pattern: "metricbeat-*"
+setup.ilm.enabled: true
+
+processors:
+  - add_host_metadata: ~
+
+logging.level: warning
+logging.metrics.enabled: false

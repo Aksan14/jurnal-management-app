@@ -361,6 +361,103 @@ type NilaiRequest struct {
 	Keterangan string  `json:"keterangan"`
 }
 
+// ----------------------------------------------------
+// REKAP NILAI DTOs (structured grading)
+// ----------------------------------------------------
+type TugasItemRequest struct {
+	Ke         int     `json:"ke" validate:"required,min=1"`
+	Nilai      float64 `json:"nilai" validate:"required,min=0,max=100"`
+	Keterangan string  `json:"keterangan"`
+}
+
+type UpsertRekapNilaiRequest struct {
+	MengajarID  uint               `json:"mengajar_id" validate:"required"`
+	SiswaID     uint               `json:"siswa_id" validate:"required"`
+	Semester    string             `json:"semester" validate:"required,oneof=Ganjil Genap"`
+	TahunAjaran string             `json:"tahun_ajaran" validate:"required"`
+	NilaiMid    *float64           `json:"nilai_mid" validate:"omitempty,min=0,max=100"`
+	NilaiUAS    *float64           `json:"nilai_uas" validate:"omitempty,min=0,max=100"`
+	BobotTugas  *float64           `json:"bobot_tugas"`
+	BobotMid    *float64           `json:"bobot_mid"`
+	BobotUAS    *float64           `json:"bobot_uas"`
+	Tugas       []TugasItemRequest `json:"tugas"`
+}
+
+// BatchKomponenRequest — input one grading component for multiple students at once
+type BatchNilaiItem struct {
+	SiswaID    uint    `json:"siswa_id"`
+	Nilai      float64 `json:"nilai"`
+	Keterangan string  `json:"keterangan"`
+}
+
+type BatchKomponenRequest struct {
+	MengajarID  uint             `json:"mengajar_id" validate:"required"`
+	Semester    string           `json:"semester" validate:"required,oneof=Ganjil Genap"`
+	TahunAjaran string           `json:"tahun_ajaran" validate:"required"`
+	Komponen    string           `json:"komponen" validate:"required,oneof=tugas mid uas"`
+	KeTugas     int              `json:"ke_tugas"` // only used when komponen=tugas
+	BobotTugas  float64          `json:"bobot_tugas"`
+	BobotMid    float64          `json:"bobot_mid"`
+	BobotUAS    float64          `json:"bobot_uas"`
+	Data        []BatchNilaiItem `json:"data" validate:"required"`
+}
+
+// KelasNilaiView — class-level grade roster returned by GET /nilai/rekap/kelas
+type StudentNilaiRow struct {
+	SiswaID    uint       `json:"siswa_id"`
+	NamaSiswa  string     `json:"nama_siswa"`
+	NIS        string     `json:"nis"`
+	RekapID    *uint      `json:"rekap_id"`
+	Tugas      []*float64 `json:"tugas"` // index = ke-1, nil = not filled yet
+	Mid        *float64   `json:"mid"`
+	UAS        *float64   `json:"uas"`
+	NilaiAkhir *float64   `json:"nilai_akhir"`
+}
+
+type KelasNilaiView struct {
+	MengajarID  uint              `json:"mengajar_id"`
+	NamaMapel   string            `json:"nama_mapel"`
+	NamaKelas   string            `json:"nama_kelas"`
+	Semester    string            `json:"semester"`
+	TahunAjaran string            `json:"tahun_ajaran"`
+	JumlahTugas int               `json:"jumlah_tugas"`
+	BobotTugas  float64           `json:"bobot_tugas"`
+	BobotMid    float64           `json:"bobot_mid"`
+	BobotUAS    float64           `json:"bobot_uas"`
+	Siswa       []StudentNilaiRow `json:"siswa"`
+}
+
+// ─── REKAP ABSENSI DTOs ───────────────────────────────────────────────────────
+
+// RekapAbsensiSiswaItem — aggregated attendance per student
+type RekapAbsensiSiswaItem struct {
+	SiswaID    uint    `json:"siswa_id"`
+	NamaSiswa  string  `json:"nama_siswa"`
+	NIS        string  `json:"nis"`
+	NamaKelas  string  `json:"nama_kelas"`
+	TotalHadir int     `json:"total_hadir"`
+	TotalSakit int     `json:"total_sakit"`
+	TotalIzin  int     `json:"total_izin"`
+	TotalAlpha int     `json:"total_alpha"`
+	TotalHari  int     `json:"total_hari"`
+	Persentase float64 `json:"persentase"`
+}
+
+// RekapAbsensiGuruItem — combined absensi + jurnal summary per teacher
+type RekapAbsensiGuruItem struct {
+	GuruID           uint    `json:"guru_id"`
+	NamaGuru         string  `json:"nama_guru"`
+	NIP              string  `json:"nip"`
+	TotalHadir       int     `json:"total_hadir"`
+	TotalTerlambat   int     `json:"total_terlambat"`
+	TotalIzin        int     `json:"total_izin"`
+	TotalSakit       int     `json:"total_sakit"`
+	TotalAlpa        int     `json:"total_alpa"`
+	TotalJurnal      int     `json:"total_jurnal"`
+	Persentase       float64 `json:"persentase"`
+	HadirTanpaJurnal int     `json:"hadir_tanpa_jurnal"` // days present but no jurnal
+}
+
 type ParentAnakRequest struct {
 	OrangTuaID uint   `json:"orang_tua_id" validate:"required"`
 	SiswaID    uint   `json:"siswa_id" validate:"required"`

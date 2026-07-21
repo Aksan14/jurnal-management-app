@@ -1555,6 +1555,155 @@ func (r *nilaiRepository) List(param domain.PaginationParam, siswaID uint, mapel
 }
 
 // ----------------------------------------------------
+// REKAP NILAI REPOSITORY
+// ----------------------------------------------------
+type rekapNilaiRepository struct {
+	db *gorm.DB
+}
+
+func NewRekapNilaiRepository(db *gorm.DB) domain.RekapNilaiRepository {
+	return &rekapNilaiRepository{db}
+}
+
+func (r *rekapNilaiRepository) Upsert(rekap *domain.RekapNilai) error {
+	return r.db.Save(rekap).Error
+}
+
+func (r *rekapNilaiRepository) Update(rekap *domain.RekapNilai) error {
+	return r.db.Save(rekap).Error
+}
+
+func (r *rekapNilaiRepository) Delete(id uint) error {
+	return r.db.Delete(&domain.RekapNilai{}, id).Error
+}
+
+func (r *rekapNilaiRepository) FindByID(id uint) (*domain.RekapNilai, error) {
+	var rekap domain.RekapNilai
+	err := r.db.Preload("Siswa").Preload("Mengajar").Preload("Mengajar.Mapel").Preload("Mengajar.Kelas").Preload("Mengajar.Guru").Preload("Tugas", func(db *gorm.DB) *gorm.DB {
+		return db.Order("ke ASC")
+	}).First(&rekap, id).Error
+	return &rekap, err
+}
+
+func (r *rekapNilaiRepository) FindByMengajarSiswaSemester(mengajarID, siswaID uint, semester, tahunAjaran string) (*domain.RekapNilai, error) {
+	var rekap domain.RekapNilai
+	err := r.db.Preload("Tugas", func(db *gorm.DB) *gorm.DB {
+		return db.Order("ke ASC")
+	}).Where("mengajar_id = ? AND siswa_id = ? AND semester = ? AND tahun_ajaran = ?", mengajarID, siswaID, semester, tahunAjaran).First(&rekap).Error
+	if err != nil {
+		return nil, err
+	}
+	return &rekap, nil
+}
+
+func (r *rekapNilaiRepository) List(param domain.PaginationParam, mengajarID, siswaID, kelasID uint, semester, tahunAjaran string) (*domain.PaginatedResult[domain.RekapNilai], error) {
+	var list []domain.RekapNilai
+	tx := r.db.Model(&domain.RekapNilai{}).
+		Preload("Siswa").Preload("Siswa.Kelas").
+		Preload("Mengajar").Preload("Mengajar.Mapel").Preload("Mengajar.Kelas").Preload("Mengajar.Guru").
+		Preload("Tugas", func(db *gorm.DB) *gorm.DB { return db.Order("ke ASC") })
+	if mengajarID > 0 {
+		tx = tx.Where("tbl_rekap_nilai.mengajar_id = ?", mengajarID)
+	}
+	if siswaID > 0 {
+		tx = tx.Where("tbl_rekap_nilai.siswa_id = ?", siswaID)
+	}
+	if kelasID > 0 {
+		tx = tx.Joins("JOIN tbl_mengajar ON tbl_mengajar.id = tbl_rekap_nilai.mengajar_id").
+			Where("tbl_mengajar.kelas_id = ?", kelasID)
+	}
+	if semester != "" {
+		tx = tx.Where("tbl_rekap_nilai.semester = ?", semester)
+	}
+	if tahunAjaran != "" {
+		tx = tx.Where("tbl_rekap_nilai.tahun_ajaran = ?", tahunAjaran)
+	}
+	meta, err := paginate(tx, param, &list)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.PaginatedResult[domain.RekapNilai]{Data: list, Meta: meta}, nil
+}
+
+// ----------------------------------------------------
+// NILAI TUGAS REPOSITORY
+// ----------------------------------------------------
+type nilaiTugasRepository struct {
+	db *gorm.DB
+}
+
+func NewNilaiTugasRepository(db *gorm.DB) domain.NilaiTugasRepository {
+	return &nilaiTugasRepository{db}
+}
+
+func (r *nilaiTugasRepository) Create(t *domain.NilaiTugas) error {
+	return r.db.Create(t).Error
+}
+
+func (r *nilaiTugasRepository) Update(t *domain.NilaiTugas) error {
+	return r.db.Save(t).Error
+}
+
+func (r *nilaiTugasRepository) Delete(id uint) error {
+	return r.db.Delete(&domain.NilaiTugas{}, id).Error
+}
+
+func (r *nilaiTugasRepository) FindByID(id uint) (*domain.NilaiTugas, error) {
+	var t domain.NilaiTugas
+	err := r.db.First(&t, id).Error
+	return &t, err
+}
+
+func (r *nilaiTugasRepository) DeleteByRekapID(rekapID uint) error {
+	return r.db.Where("rekap_nilai_id = ?", rekapID).Delete(&domain.NilaiTugas{}).Error
+}
+
+func (r *nilaiTugasRepository) CreateBatch(tugas []domain.NilaiTugas) error {
+	if len(tugas) == 0 {
+		return nil
+	}
+	return r.db.Create(&tugas).Error
+}
+
+func (r *nilaiTugasRepository) UpsertByRekapAndKe(rekapID uint, ke int, nilai float64, keterangan string) error {
+	var existing domain.NilaiTugas
+	err := r.db.Where("rekap_nilai_id = ? AND ke = ?", rekapID, ke).First(&existing).Error
+	if err != nil {
+		return r.db.Create(&domain.NilaiTugas{
+			RekapNilaiID: rekapID,
+			Ke:           ke,
+			Nilai:        nilai,
+			Keterangan:   keterangan,
+		}).Error
+	}
+	existing.Nilai = nilai
+	existing.Keterangan = keterangan
+	return r.db.Save(&existing).Error
+}
+
+func (r *nilaiTugasRepository) GetAllByRekapID(rekapID uint) ([]domain.NilaiTugas, error) {
+	var list []domain.NilaiTugas
+	err := r.db.Where("rekap_nilai_id = ?", rekapID).Order("ke ASC").Find(&list).Error
+	return list, err
+}
+
+// Add ListByMengajarSemester to rekapNilaiRepository
+func (r *rekapNilaiRepository) ListByMengajarSemester(mengajarID uint, semester, tahunAjaran string) ([]domain.RekapNilai, error) {
+	var list []domain.RekapNilai
+	tx := r.db.Where("mengajar_id = ? AND deleted_at IS NULL", mengajarID)
+	if semester != "" {
+		tx = tx.Where("semester = ?", semester)
+	}
+	if tahunAjaran != "" {
+		tx = tx.Where("tahun_ajaran = ?", tahunAjaran)
+	}
+	err := tx.Preload("Siswa").
+		Preload("Tugas", func(db *gorm.DB) *gorm.DB { return db.Order("ke ASC") }).
+		Find(&list).Error
+	return list, err
+}
+
+// ----------------------------------------------------
 // NOTIFIKASI REPOSITORY
 // ----------------------------------------------------
 type notifikasiRepository struct {

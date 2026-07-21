@@ -498,7 +498,7 @@ export default function JurnalPage() {
                     <SelectContent>
           <SelectGroup>
                       <SelectItem value="all">Semua Guru</SelectItem>
-                      {guruList.map(g => <SelectItem key={g.id} value={String(g.id)}>{g.nama}</SelectItem>)}
+                      {guruList.map(g => <SelectItem key={g.id} value={String(g.id)} label={g.nama}>{g.nama}</SelectItem>)}
                               </SelectGroup>
         </SelectContent>
                   </Select>
@@ -512,7 +512,7 @@ export default function JurnalPage() {
                     <SelectContent>
           <SelectGroup>
                       <SelectItem value="all">Semua Kelas</SelectItem>
-                      {kelasList.map(k => <SelectItem key={k.id} value={String(k.id)}>{k.nama_kelas}</SelectItem>)}
+                      {kelasList.map(k => <SelectItem key={k.id} value={String(k.id)} label={k.nama_kelas}>{k.nama_kelas}</SelectItem>)}
                               </SelectGroup>
         </SelectContent>
                   </Select>
@@ -708,7 +708,7 @@ export default function JurnalPage() {
                       {[...mengajarList]
                         .sort((a, b) => HARI_ORDER.indexOf(a.hari) - HARI_ORDER.indexOf(b.hari))
                         .map((m) => (
-                          <SelectItem key={m.id} value={String(m.id)}>
+                          <SelectItem key={m.id} value={String(m.id)} label={m.hari}>
                             <span className="font-medium">{m.hari}</span>
                             {" — "}
                             {m.mapel?.nama_mapel}
@@ -1062,7 +1062,7 @@ export default function JurnalPage() {
                       <SelectContent>
           <SelectGroup>
                         {mengajarList.map((m) => (
-                          <SelectItem key={m.id} value={String(m.id)}>
+                          <SelectItem key={m.id} value={String(m.id)} label={m.hari}>
                             {m.hari} — {m.mapel?.nama_mapel} ({m.kelas?.nama_kelas})
                           </SelectItem>
                         ))}

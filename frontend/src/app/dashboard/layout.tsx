@@ -5,7 +5,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
 import { api } from "@/lib/api";
 import { 
-  GraduationCap, 
   LayoutDashboard, 
   Database, 
   BookOpen, 
@@ -24,6 +23,7 @@ import {
   FileUp,
   Star
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { toast } from "sonner";
@@ -270,8 +270,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border/30 shrink-0">
         <div className="h-16 flex items-center px-6 gap-3 border-b border-border/20">
-          <GraduationCap className="h-6 w-6 text-primary" />
-          <span className="font-bold text-lg text-foreground tracking-wider">JURNAL APPS</span>
+          <Image src="/logo.png" alt="JAMS" width={90} height={36} className="object-contain" priority />
         </div>
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
           {filteredItems.map((item) => {
@@ -304,6 +303,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             const reportsSubItems = [
               { label: "Log Aktivitas", href: "/dashboard/reports" },
               { label: "Rekap Jurnal Guru", href: "/dashboard/reports/rekap-guru" },
+              { label: "Absensi Siswa", href: "/dashboard/reports/absensi-siswa" },
+              { label: "Absensi Guru", href: "/dashboard/reports/absensi-guru" },
             ];
 
             const bkSubItems = [
@@ -489,8 +490,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <aside className="relative flex flex-col w-64 bg-card border-r border-border/30 h-full">
             <div className="h-16 flex items-center justify-between px-6 border-b border-border/20">
               <div className="flex items-center gap-3">
-                <GraduationCap className="h-6 w-6 text-primary" />
-                <span className="font-bold text-foreground tracking-wider">JURNAL APPS</span>
+                <Image src="/logo.png" alt="JAMS" width={90} height={36} className="object-contain" priority />
               </div>
               <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
                 <X className="h-5 w-5 text-gray-400" />

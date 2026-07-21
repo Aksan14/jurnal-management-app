@@ -348,7 +348,7 @@ export default function SiswaManagementPage() {
                       <SelectContent>
           <SelectGroup>
                         {kelasList.map((k) => (
-                          <SelectItem key={k.id || k.ID} value={String(k.id || k.ID)}>
+                          <SelectItem key={k.id || k.ID} value={String(k.id || k.ID)} label={k.nama_kelas || k.nama}>
                             {k.nama_kelas || k.nama}
                           </SelectItem>
                         ))}
@@ -365,7 +365,7 @@ export default function SiswaManagementPage() {
                       <SelectContent>
           <SelectGroup>
                         {jurusanList.map((j) => (
-                          <SelectItem key={j.id || j.ID} value={String(j.id || j.ID)}>
+                          <SelectItem key={j.id || j.ID} value={String(j.id || j.ID)} label={j.nama_jurusan}>
                             {j.nama_jurusan} ({j.kode_jurusan})
                           </SelectItem>
                         ))}

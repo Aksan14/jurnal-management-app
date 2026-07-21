@@ -1,17 +1,7 @@
-# ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM golang:1.21-alpine AS builder
-
-RUN apk add --no-cache git ca-certificates tzdata
-
-WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-w -s" -o server ./cmd/api/main.go
+# ── Stage 1: Use pre-built static binary ─────────────────────────────────────
+# Binary sudah di-build dengan: CGO_ENABLED=0 GOOS=linux go build -o server_static
+FROM scratch AS binary-source
+COPY server_static /server
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM alpine:3.19
@@ -21,10 +11,7 @@ RUN apk --no-cache add ca-certificates tzdata && \
 
 WORKDIR /app
 
-COPY --from=builder /app/server .
-
-# Copy timezone data
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=binary-source /server ./server
 
 RUN chown -R appuser:appgroup /app
 USER appuser

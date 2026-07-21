@@ -1527,6 +1527,108 @@ func (h *NilaiHandler) List(c echo.Context) error {
 }
 
 // ----------------------------------------------------
+// REKAP NILAI HANDLER
+// ----------------------------------------------------
+type RekapNilaiHandler struct {
+	rekapService service.RekapNilaiService
+}
+
+func NewRekapNilaiHandler(rekapService service.RekapNilaiService) *RekapNilaiHandler {
+	return &RekapNilaiHandler{rekapService}
+}
+
+func (h *RekapNilaiHandler) Upsert(c echo.Context) error {
+	var req dto.UpsertRekapNilaiRequest
+	if err := c.Bind(&req); err != nil {
+		return respond[any](c, http.StatusBadRequest, false, err.Error(), nil, nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return respond[any](c, http.StatusBadRequest, false, err.Error(), nil, nil)
+	}
+	userID, _, _ := middleware.GetCurrentUser(c)
+	res, err := h.rekapService.UpsertRekap(req, userID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "anda tidak memiliki hak input nilai untuk mata pelajaran ini" {
+			status = http.StatusForbidden
+		}
+		return respond[any](c, status, false, err.Error(), nil, nil)
+	}
+	return respond(c, http.StatusOK, true, "Rekap nilai berhasil disimpan", res, nil)
+}
+
+func (h *RekapNilaiHandler) GetByID(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	res, err := h.rekapService.GetRekap(uint(id))
+	if err != nil {
+		return respond[any](c, http.StatusNotFound, false, "Data tidak ditemukan", nil, nil)
+	}
+	return respond(c, http.StatusOK, true, "Success", res, nil)
+}
+
+func (h *RekapNilaiHandler) Delete(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	userID, _, _ := middleware.GetCurrentUser(c)
+	err := h.rekapService.DeleteRekap(uint(id), userID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "anda tidak memiliki hak menghapus rekap nilai ini" {
+			status = http.StatusForbidden
+		}
+		return respond[any](c, status, false, err.Error(), nil, nil)
+	}
+	return respond[any](c, http.StatusOK, true, "Rekap nilai dihapus", nil, nil)
+}
+
+func (h *RekapNilaiHandler) List(c echo.Context) error {
+	param := parsePaginationParam(c)
+	mengajarID, _ := strconv.Atoi(c.QueryParam("mengajar_id"))
+	siswaID, _ := strconv.Atoi(c.QueryParam("siswa_id"))
+	kelasID, _ := strconv.Atoi(c.QueryParam("kelas_id"))
+	semester := c.QueryParam("semester")
+	tahunAjaran := c.QueryParam("tahun_ajaran")
+
+	res, err := h.rekapService.ListRekap(param, uint(mengajarID), uint(siswaID), uint(kelasID), semester, tahunAjaran)
+	if err != nil {
+		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
+	}
+	return respond(c, http.StatusOK, true, "Success", res.Data, res.Meta)
+}
+
+func (h *RekapNilaiHandler) BatchInput(c echo.Context) error {
+	var req dto.BatchKomponenRequest
+	if err := c.Bind(&req); err != nil {
+		return respond[any](c, http.StatusBadRequest, false, err.Error(), nil, nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return respond[any](c, http.StatusBadRequest, false, err.Error(), nil, nil)
+	}
+	userID, _, _ := middleware.GetCurrentUser(c)
+	if err := h.rekapService.BatchInputKomponen(req, userID); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "anda tidak memiliki hak input nilai untuk mata pelajaran ini" {
+			status = http.StatusForbidden
+		}
+		return respond[any](c, status, false, err.Error(), nil, nil)
+	}
+	return respond[any](c, http.StatusOK, true, "Nilai berhasil disimpan", nil, nil)
+}
+
+func (h *RekapNilaiHandler) GetKelas(c echo.Context) error {
+	mengajarID, _ := strconv.Atoi(c.QueryParam("mengajar_id"))
+	semester := c.QueryParam("semester")
+	tahunAjaran := c.QueryParam("tahun_ajaran")
+	if mengajarID == 0 {
+		return respond[any](c, http.StatusBadRequest, false, "mengajar_id diperlukan", nil, nil)
+	}
+	res, err := h.rekapService.GetKelasNilai(uint(mengajarID), semester, tahunAjaran)
+	if err != nil {
+		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
+	}
+	return respond(c, http.StatusOK, true, "Success", res, nil)
+}
+
+// ----------------------------------------------------
 // REPORT / DASHBOARD HANDLER
 // ----------------------------------------------------
 type ReportHandler struct {
@@ -1722,6 +1824,39 @@ func (h *ReportHandler) GetTeacherAttendanceReport(c echo.Context) error {
 		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
 	}
 	return respond(c, http.StatusOK, true, "Success", res.Data, res.Meta)
+}
+
+// parseDate parses YYYY-MM-DD or returns a fallback time.
+func parseDate(s string, fallback time.Time) time.Time {
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t
+	}
+	return fallback
+}
+
+func (h *ReportHandler) GetRekapAbsensiSiswa(c echo.Context) error {
+	kelasID, _ := strconv.Atoi(c.QueryParam("kelas_id"))
+	siswaID, _ := strconv.Atoi(c.QueryParam("siswa_id"))
+	now := time.Now()
+	startDate := parseDate(c.QueryParam("start_date"), time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()))
+	endDate := parseDate(c.QueryParam("end_date"), now)
+	res, err := h.reportService.GetRekapAbsensiSiswa(uint(kelasID), uint(siswaID), startDate, endDate)
+	if err != nil {
+		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
+	}
+	return respond(c, http.StatusOK, true, "Success", res, nil)
+}
+
+func (h *ReportHandler) GetRekapAbsensiGuru(c echo.Context) error {
+	guruID, _ := strconv.Atoi(c.QueryParam("guru_id"))
+	now := time.Now()
+	startDate := parseDate(c.QueryParam("start_date"), time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()))
+	endDate := parseDate(c.QueryParam("end_date"), now)
+	res, err := h.reportService.GetRekapAbsensiGuru(uint(guruID), startDate, endDate)
+	if err != nil {
+		return respond[any](c, http.StatusInternalServerError, false, err.Error(), nil, nil)
+	}
+	return respond(c, http.StatusOK, true, "Success", res, nil)
 }
 
 func (h *ReportHandler) GetViolationsReport(c echo.Context) error {

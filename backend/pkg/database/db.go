@@ -70,6 +70,8 @@ func InitDB(cfg *config.Config) *gorm.DB {
 		&domain.Perizinan{},
 		&domain.IzinGuru{},
 		&domain.Nilai{},
+		&domain.RekapNilai{},
+		&domain.NilaiTugas{},
 		&domain.OrangTua{},
 		&domain.AnakOrangTua{},
 		&domain.Notifikasi{},

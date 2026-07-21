@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Lock, Mail } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
+import Image from "next/image";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function LoginPage() {
@@ -60,17 +61,24 @@ export default function LoginPage() {
 
       {/* Centered content */}
       <div className="flex flex-1 items-center justify-center px-4 py-10">
-        <Card className="w-full max-w-105 border border-border/50 bg-card/80 backdrop-blur-xl shadow-2xl relative z-10">
-          <CardHeader className="space-y-3 text-center pt-10 pb-6">
-            <div className="mx-auto bg-primary/10 w-20 h-20 rounded-2xl flex items-center justify-center border border-primary/20 mb-1 shadow-inner">
-              <GraduationCap className="h-10 w-10 text-primary" />
+        <Card className="w-full max-w-md border border-border/50 bg-card/90 backdrop-blur-xl shadow-2xl relative z-10 rounded-2xl">
+          <CardHeader className="text-center pt-10 pb-5">
+            {/* Logo — transparan di semua mode */}
+            <div className="mx-auto mb-5 relative w-fit">
+              {/* Blue ambient glow */}
+              <div className="absolute inset-0 rounded-full bg-primary/20 blur-3xl scale-150 -z-10" />
+              <Image
+                src="/logo.png"
+                alt="JAMS"
+                width={200}
+                height={200}
+                className="object-contain mix-blend-multiply dark:[filter:invert(1)_hue-rotate(180deg)] dark:mix-blend-screen dark:drop-shadow-[0_0_28px_rgba(99,160,255,0.5)]"
+                priority
+              />
             </div>
-            <div className="space-y-1">
-              <CardTitle className="text-2xl font-bold tracking-tight">Jurnal Apps</CardTitle>
-              <CardDescription className="text-sm leading-relaxed">
-                Sistem Informasi Manajemen Sekolah Terintegrasi
-              </CardDescription>
-            </div>
+            <CardDescription className="text-sm leading-relaxed font-medium tracking-wide uppercase text-muted-foreground/70">
+              Sistem Informasi Manajemen Sekolah
+            </CardDescription>
           </CardHeader>
 
           <CardContent className="px-8 pb-2">

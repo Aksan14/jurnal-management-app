@@ -322,7 +322,7 @@ export default function PerizinanSiswaPage() {
                     <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
                       {waliList.length === 0 && <div className="px-3 py-2 text-xs text-gray-500">Tidak ada data wali kelas</div>}
-                      {waliList.map(g => <SelectItem key={g.id||g.ID} value={String(g.id||g.ID)}>{g.nama}</SelectItem>)}
+                      {waliList.map(g => <SelectItem key={g.id||g.ID} value={String(g.id||g.ID)} label={g.nama}>{g.nama}</SelectItem>)}
                               </SelectGroup>
         </SelectContent>
                   </Select>
@@ -343,7 +343,7 @@ export default function PerizinanSiswaPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                    {mapelList.map(m => <SelectItem key={m.id||m.ID} value={String(m.id||m.ID)}>{m.nama_mapel}</SelectItem>)}
+                    {mapelList.map(m => <SelectItem key={m.id||m.ID} value={String(m.id||m.ID)} label={m.nama_mapel}>{m.nama_mapel}</SelectItem>)}
                             </SelectGroup>
         </SelectContent>
                 </Select>

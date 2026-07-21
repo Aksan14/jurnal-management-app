@@ -35,12 +35,10 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE:      ${DB_NAME}
-      MYSQL_USER:          ${DB_USER}
-      MYSQL_PASSWORD:      ${DB_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
-    ports:
-      - "3306:3306"
+    # Port 3306 tidak di-expose ke host (sudah dipakai MySQL lokal)
+    # Backend konek via Docker internal network: mysql:3306
     networks:
       - app-network
     healthcheck:
@@ -137,7 +135,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 -S 2>&1 | grep -q '200 OK' || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -164,7 +162,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -216,7 +214,6 @@ services:
       - xpack.monitoring.elasticsearch.hosts=http://elasticsearch:9200
       - xpack.monitoring.enabled=true
     volumes:
-      - ./elk/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
       - ./elk/logstash/pipeline:/usr/share/logstash/pipeline:ro
       - logstash-data:/usr/share/logstash/data
     ports:
@@ -263,6 +260,70 @@ services:
       - nginx-logs:/var/log/nginx:ro
     depends_on:
       logstash:
+        condition: service_started
+    networks:
+      - app-network
+      - elk-network
+    logging: *default-logging
+
+  # ── 10. cAdvisor (Container Advisor — vCPU/RAM metrics per container) ────────
+  # Membaca data cgroup langsung, expose di :8080/metrics (Prometheus format)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    <<: *always-restart
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    ports:
+      - "8090:8080"   # http://localhost:8090 → raw metrics
+    networks:
+      - elk-network
+    logging: *default-logging
+
+  # ── 11. docker-stats-collector (CPU/RAM per container → Elasticsearch) ──────
+  docker-stats:
+    build:
+      context: ./elk/docker-stats
+      dockerfile: Dockerfile
+    <<: *always-restart
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ES_INDEX=docker-stats
+      - INTERVAL=10
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk-network
+    logging: *default-logging
+
+  # ── 12. Metricbeat (scrape cAdvisor → Elasticsearch) ──────────────────────
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.16.0
+    <<: *always-restart
+    user: root
+    command: metricbeat -e -strict.perms=false
+    volumes:
+      - ./elk/metricbeat/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
         condition: service_started
     networks:
       - app-network

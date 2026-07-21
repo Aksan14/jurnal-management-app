@@ -276,7 +276,7 @@ export default function KelasSection({ search, isKepsek }: KelasSectionProps) {
                 <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
                   {jurusans.map((j) => (
-                    <SelectItem key={j.id || j.ID} value={String(j.id || j.ID)}>
+                    <SelectItem key={j.id || j.ID} value={String(j.id || j.ID)} label={j.nama_jurusan}>
                       {j.nama_jurusan}
                     </SelectItem>
                   ))}
@@ -299,7 +299,7 @@ export default function KelasSection({ search, isKepsek }: KelasSectionProps) {
                 <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
                   {gurus.map((g) => (
-                    <SelectItem key={g.id || g.ID} value={String(g.id || g.ID)}>
+                    <SelectItem key={g.id || g.ID} value={String(g.id || g.ID)} label={g.nama}>
                       {g.nama}
                     </SelectItem>
                   ))}

@@ -42,6 +42,11 @@ func main() {
 	// Custom request validator
 	e.Validator = validator.NewCustomValidator()
 
+	// Health check endpoint (used by Docker HEALTHCHECK)
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(200, map[string]string{"status": "ok"})
+	})
+
 	// Setup API Routes
 	routes.SetupRoutes(e, db, cfg, rdb)
 

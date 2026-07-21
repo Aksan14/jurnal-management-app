@@ -303,7 +303,7 @@ export default function OrangTuaSection({ search, isKepsek }: OrangTuaSectionPro
                           )}
                           {siswaList.map(s => (
                             <SelectItem key={s.id} value={String(s.id)}
-                              className="text-white focus:bg-primary/20 focus:text-white cursor-pointer">
+                              className="text-white focus:bg-primary/20 focus:text-white cursor-pointer" label={s.nama}>
                               <span className="font-medium">{s.nama}</span>
                               <span className="ml-2 text-xs text-gray-400 bg-[#111420] px-1.5 py-0.5 rounded">{s.kelas?.nama_kelas || "Tanpa Kelas"}</span>
                             </SelectItem>
@@ -361,7 +361,7 @@ export default function OrangTuaSection({ search, isKepsek }: OrangTuaSectionPro
                   <SelectGroup>
                     {siswaList.map(s => (
                       <SelectItem key={s.id} value={String(s.id)}
-                        className="text-white focus:bg-primary/20 focus:text-white cursor-pointer">
+                        className="text-white focus:bg-primary/20 focus:text-white cursor-pointer" label={s.nama}>
                         <span className="font-medium">{s.nama}</span>
                         <span className="ml-2 text-xs text-gray-400 bg-[#111420] px-1.5 py-0.5 rounded">{s.kelas?.nama_kelas || "Tanpa Kelas"}</span>
                       </SelectItem>

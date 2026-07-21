@@ -392,7 +392,7 @@ export default function InboxPage() {
                 <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
                   {users.map((u) => (
-                    <SelectItem key={u.id} value={String(u.id)} className="focus:bg-[#161a2b]">
+                    <SelectItem key={u.id} value={String(u.id)} className="focus:bg-[#161a2b]" label={u.nama_lengkap || u.username}>
                       <span className="font-medium">{u.nama_lengkap || u.username}</span>
                       <span className="ml-2 text-xs text-gray-400">
                         ({roleLabels[u.role] || u.role})

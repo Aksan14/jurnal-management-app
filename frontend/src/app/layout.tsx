@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Jurnal Apps | Sistem Informasi Manajemen Sekolah",
+  title: "JAMS | Sistem Informasi Manajemen Sekolah",
   description: "Portal Jurnal Mengajar, Absensi QR, BK Konseling, Perizinan, dan Pelaporan Sekolah Terintegrasi.",
 };
 

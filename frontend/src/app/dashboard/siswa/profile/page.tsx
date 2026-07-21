@@ -269,7 +269,7 @@ export default function SiswaProfilePage() {
                 <SelectContent>
           <SelectGroup>
                   {kelasOptions.map(kelas => (
-                    <SelectItem key={kelas.id} value={kelas.id.toString()}>
+                    <SelectItem key={kelas.id} value={kelas.id.toString()} label={kelas.nama}>
                       {kelas.nama}
                     </SelectItem>
                   ))}

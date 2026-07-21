@@ -373,7 +373,7 @@ export default function MengajarSection({ search, isKepsek }: MengajarSectionPro
               <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
                 <SelectItem value="all">Semua Kelas</SelectItem>
-                {kelases.map(k => <SelectItem key={k.id || k.ID} value={String(k.id || k.ID)}>{k.nama_kelas}</SelectItem>)}
+                {kelases.map(k => <SelectItem key={k.id || k.ID} value={String(k.id || k.ID)} label={k.nama_kelas}>{k.nama_kelas}</SelectItem>)}
                         </SelectGroup>
         </SelectContent>
             </Select>
@@ -389,7 +389,7 @@ export default function MengajarSection({ search, isKepsek }: MengajarSectionPro
               <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
                 <SelectItem value="all">Semua Guru</SelectItem>
-                {gurus.map(g => <SelectItem key={g.id || g.ID} value={String(g.id || g.ID)}>{g.nama}</SelectItem>)}
+                {gurus.map(g => <SelectItem key={g.id || g.ID} value={String(g.id || g.ID)} label={g.nama}>{g.nama}</SelectItem>)}
                         </SelectGroup>
         </SelectContent>
             </Select>
@@ -722,7 +722,7 @@ export default function MengajarSection({ search, isKepsek }: MengajarSectionPro
                   </SelectTrigger>
                   <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                    {gurus.map(g => <SelectItem key={g.id || g.ID} value={String(g.id || g.ID)}>{g.nama}</SelectItem>)}
+                    {gurus.map(g => <SelectItem key={g.id || g.ID} value={String(g.id || g.ID)} label={g.nama}>{g.nama}</SelectItem>)}
                             </SelectGroup>
         </SelectContent>
                 </Select>
@@ -735,7 +735,7 @@ export default function MengajarSection({ search, isKepsek }: MengajarSectionPro
                   </SelectTrigger>
                   <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                    {mapels.map(m => <SelectItem key={m.id || m.ID} value={String(m.id || m.ID)}>{m.nama_mapel}</SelectItem>)}
+                    {mapels.map(m => <SelectItem key={m.id || m.ID} value={String(m.id || m.ID)} label={m.nama_mapel}>{m.nama_mapel}</SelectItem>)}
                             </SelectGroup>
         </SelectContent>
                 </Select>
@@ -748,7 +748,7 @@ export default function MengajarSection({ search, isKepsek }: MengajarSectionPro
                   </SelectTrigger>
                   <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                    {kelases.map(k => <SelectItem key={k.id || k.ID} value={String(k.id || k.ID)}>{k.nama_kelas}</SelectItem>)}
+                    {kelases.map(k => <SelectItem key={k.id || k.ID} value={String(k.id || k.ID)} label={k.nama_kelas}>{k.nama_kelas}</SelectItem>)}
                             </SelectGroup>
         </SelectContent>
                 </Select>

@@ -309,7 +309,7 @@ export default function BKSection({ tab }: { tab: BKTab }) {
                   </SelectTrigger>
                   <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                    {students.map((s) => (<SelectItem key={s.id || s.ID} value={String(s.id || s.ID)}>{s.nama} ({s.kelas?.nama_kelas || "Tanpa Kelas"})</SelectItem>))}
+                    {students.map((s) => (<SelectItem key={s.id || s.ID} value={String(s.id || s.ID)} label={s.nama}>{s.nama} ({s.kelas?.nama_kelas || "Tanpa Kelas"})</SelectItem>))}
                             </SelectGroup>
         </SelectContent>
                 </Select>
@@ -328,7 +328,7 @@ export default function BKSection({ tab }: { tab: BKTab }) {
                   </SelectTrigger>
                   <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                    {classes.map((c) => (<SelectItem key={c.id || c.ID} value={String(c.id || c.ID)}>{c.nama_kelas}</SelectItem>))}
+                    {classes.map((c) => (<SelectItem key={c.id || c.ID} value={String(c.id || c.ID)} label={c.nama_kelas}>{c.nama_kelas}</SelectItem>))}
                             </SelectGroup>
         </SelectContent>
                 </Select>

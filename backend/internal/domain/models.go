@@ -421,6 +421,42 @@ type Nilai struct {
 
 func (Nilai) TableName() string { return "tbl_nilai" }
 
+// RekapNilai represents tbl_rekap_nilai — aggregated grade sheet per student per subject per semester
+type RekapNilai struct {
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	MengajarID  uint           `gorm:"not null;index" json:"mengajar_id"`
+	Mengajar    Mengajar       `gorm:"foreignKey:MengajarID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"mengajar,omitempty"`
+	SiswaID     uint           `gorm:"not null;index" json:"siswa_id"`
+	Siswa       Siswa          `gorm:"foreignKey:SiswaID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"siswa,omitempty"`
+	Semester    string         `gorm:"size:10;not null;index" json:"semester"`          // Ganjil, Genap
+	TahunAjaran string         `gorm:"size:20;not null;index" json:"tahun_ajaran"`      // e.g. 2025/2026
+	NilaiMid    *float64       `gorm:"type:decimal(5,2)" json:"nilai_mid"`              // null = belum diisi
+	NilaiUAS    *float64       `gorm:"type:decimal(5,2)" json:"nilai_uas"`              // null = belum diisi
+	NilaiAkhir  *float64       `gorm:"type:decimal(5,2)" json:"nilai_akhir"`            // auto-calculated
+	BobotTugas  float64        `gorm:"type:decimal(5,2);default:30" json:"bobot_tugas"` // %
+	BobotMid    float64        `gorm:"type:decimal(5,2);default:30" json:"bobot_mid"`
+	BobotUAS    float64        `gorm:"type:decimal(5,2);default:40" json:"bobot_uas"`
+	Tugas       []NilaiTugas   `gorm:"foreignKey:RekapNilaiID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"tugas,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (RekapNilai) TableName() string { return "tbl_rekap_nilai" }
+
+// NilaiTugas represents tbl_nilai_tugas — individual task scores linked to a rekap
+type NilaiTugas struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	RekapNilaiID uint      `gorm:"not null;index" json:"rekap_nilai_id"`
+	Ke           int       `gorm:"not null" json:"ke"` // task number: 1, 2, 3...
+	Nilai        float64   `gorm:"type:decimal(5,2);not null" json:"nilai"`
+	Keterangan   string    `gorm:"type:text" json:"keterangan"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (NilaiTugas) TableName() string { return "tbl_nilai_tugas" }
+
 // OrangTua represents tbl_orang_tua
 type OrangTua struct {
 	ID        uint           `gorm:"primaryKey" json:"id"`

@@ -65,7 +65,13 @@ func NewAuthService(cfg *config.Config, userRepo domain.UserRepository, guruRepo
 }
 
 func (s *authService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByUsername(req.Username)
+	var user *domain.User
+	var err error
+	if strings.Contains(req.Username, "@") {
+		user, err = s.userRepo.FindByEmail(req.Username)
+	} else {
+		user, err = s.userRepo.FindByUsername(req.Username)
+	}
 	if err != nil {
 		return nil, errors.New("username atau password salah")
 	}
@@ -132,6 +138,33 @@ func generatePassword(length int) string {
 		b[i] = chars[rand.Intn(len(chars))]
 	}
 	return string(b)
+}
+
+// friendlyDupErr inspects a raw DB error and returns a user-facing message when
+// the error is a MySQL/GORM unique-constraint violation (error 1062).
+// If the error is unrelated it is returned unchanged.
+func friendlyDupErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "1062") && !strings.Contains(msg, "Duplicate entry") {
+		return err
+	}
+	switch {
+	case strings.Contains(msg, "username"):
+		return errors.New("username sudah digunakan, gunakan username yang lain")
+	case strings.Contains(msg, "email"):
+		return errors.New("email sudah terdaftar, gunakan email yang lain")
+	case strings.Contains(msg, "nisn"):
+		return errors.New("NISN sudah terdaftar")
+	case strings.Contains(msg, "nis"):
+		return errors.New("NIS sudah terdaftar")
+	case strings.Contains(msg, "nip"):
+		return errors.New("NIP sudah terdaftar")
+	default:
+		return errors.New("data duplikat — salah satu nilai yang dimasukkan sudah terdaftar di sistem")
+	}
 }
 
 // ─── MASTER SERVICE ───────────────────────────────────────────────────────────
@@ -321,6 +354,13 @@ func (s *masterService) CreateGuru(req dto.GuruCreateRequest) (*domain.Guru, err
 	if _, err := s.guruRepo.FindByNIP(req.NIP); err == nil {
 		return nil, errors.New("NIP sudah terdaftar")
 	}
+	// Cek username & email duplikat sebelum insert
+	if _, err := s.userRepo.FindByUsernameUnscoped(req.Username); err == nil {
+		return nil, errors.New("username sudah digunakan, gunakan username yang lain")
+	}
+	if _, err := s.userRepo.FindByEmailUnscoped(req.Email); err == nil {
+		return nil, errors.New("email sudah terdaftar, gunakan email yang lain")
+	}
 	// Auto-generate password jika tidak diberikan
 	plainPassword := req.Password
 	if plainPassword == "" {
@@ -333,7 +373,7 @@ func (s *masterService) CreateGuru(req dto.GuruCreateRequest) (*domain.Guru, err
 	}
 	user := &domain.User{Username: req.Username, Email: req.Email, Password: string(hashed), Role: role}
 	if err := s.userRepo.Create(user); err != nil {
-		return nil, fmt.Errorf("gagal membuat akun: %v", err)
+		return nil, friendlyDupErr(err)
 	}
 	guru := &domain.Guru{UserID: user.ID, NIP: req.NIP, Nama: req.Nama, Gelar: req.Gelar, Phone: req.Phone, Gender: req.Gender, Alamat: req.Alamat, Status: req.Status}
 	if err := s.guruRepo.Create(guru); err != nil {
@@ -400,10 +440,21 @@ func (s *masterService) CreateSiswa(req dto.SiswaCreateRequest) (*domain.Siswa, 
 	if nis == "" {
 		nis = fmt.Sprintf("NIS%d", time.Now().UnixNano()%100000)
 	}
+	// Cek NISN & NIS duplikat
+	if _, err := s.siswaRepo.FindByNISN(nisn); err == nil {
+		return nil, errors.New("NISN sudah terdaftar")
+	}
+	if _, err := s.siswaRepo.FindByNIS(nis); err == nil {
+		return nil, errors.New("NIS sudah terdaftar")
+	}
 	// Username: gunakan req.Username jika ada, fallback ke NIS
 	username := req.Username
 	if username == "" {
 		username = nis
+	}
+	// Cek username & email duplikat sebelum insert
+	if _, err := s.userRepo.FindByUsernameUnscoped(username); err == nil {
+		return nil, errors.New("username sudah digunakan, gunakan username yang lain")
 	}
 	// Password: auto-generate selalu
 	pwd := generatePassword(10)
@@ -413,9 +464,14 @@ func (s *masterService) CreateSiswa(req dto.SiswaCreateRequest) (*domain.Siswa, 
 	if email == "" {
 		email = fmt.Sprintf("%s@siswa.local", nis)
 	}
+	if req.Email != "" {
+		if _, err := s.userRepo.FindByEmailUnscoped(req.Email); err == nil {
+			return nil, errors.New("email sudah terdaftar, gunakan email yang lain")
+		}
+	}
 	user := &domain.User{Username: username, Email: email, Password: string(hashed), Role: "siswa"}
 	if err := s.userRepo.Create(user); err != nil {
-		return nil, err
+		return nil, friendlyDupErr(err)
 	}
 	siswa := &domain.Siswa{
 		UserID: user.ID, NISN: nisn, NIS: nis, Nama: req.Nama,
@@ -515,12 +571,29 @@ func (s *masterService) ListSiswa(param domain.PaginationParam, kelasID uint, ju
 }
 
 func (s *masterService) CreateOrangTua(req dto.OrangTuaCreateRequest) (*domain.OrangTua, error) {
+	// Cek username & email duplikat
+	if req.Username != "" {
+		if _, err := s.userRepo.FindByUsernameUnscoped(req.Username); err == nil {
+			return nil, errors.New("username sudah digunakan, gunakan username yang lain")
+		}
+	}
+	if req.Email != "" {
+		if _, err := s.userRepo.FindByEmailUnscoped(req.Email); err == nil {
+			return nil, errors.New("email sudah terdaftar, gunakan email yang lain")
+		}
+	}
 	pwd := generatePassword(8)
+	if req.Password != "" {
+		pwd = req.Password
+	}
 	hashed, _ := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
-	uname := fmt.Sprintf("ortu%d", time.Now().UnixNano()%100000)
+	uname := req.Username
+	if uname == "" {
+		uname = fmt.Sprintf("ortu%d", time.Now().UnixNano()%100000)
+	}
 	user := &domain.User{Username: uname, Email: req.Email, Password: string(hashed), Role: "orang_tua"}
 	if err := s.userRepo.Create(user); err != nil {
-		return nil, err
+		return nil, friendlyDupErr(err)
 	}
 	o := &domain.OrangTua{UserID: user.ID, Nama: req.Nama, Phone: req.Phone, Pekerjaan: req.Pekerjaan, Alamat: req.Alamat}
 	return o, s.ortuRepo.Create(o)
@@ -1668,6 +1741,318 @@ func (s *nilaiService) ListNilai(param domain.PaginationParam, siswaID, mapelID 
 	return s.nilaiRepo.List(param, siswaID, mapelID, jenisNilai)
 }
 
+// ─── REKAP NILAI SERVICE ──────────────────────────────────────────────────────
+type RekapNilaiService interface {
+	UpsertRekap(req dto.UpsertRekapNilaiRequest, callerUserID uint) (*domain.RekapNilai, error)
+	DeleteRekap(id uint, callerUserID uint) error
+	GetRekap(id uint) (*domain.RekapNilai, error)
+	ListRekap(param domain.PaginationParam, mengajarID, siswaID, kelasID uint, semester, tahunAjaran string) (*domain.PaginatedResult[domain.RekapNilai], error)
+	// Batch input one grading component for all students in a class
+	BatchInputKomponen(req dto.BatchKomponenRequest, callerUserID uint) error
+	// Return full class roster with all grade components
+	GetKelasNilai(mengajarID uint, semester, tahunAjaran string) (*dto.KelasNilaiView, error)
+}
+
+type rekapNilaiService struct {
+	rekapRepo    domain.RekapNilaiRepository
+	tugasRepo    domain.NilaiTugasRepository
+	mengajarRepo domain.MengajarRepository
+	guruRepo     domain.GuruRepository
+	siswaRepo    domain.SiswaRepository
+}
+
+func NewRekapNilaiService(rekapRepo domain.RekapNilaiRepository, tugasRepo domain.NilaiTugasRepository, mengajarRepo domain.MengajarRepository, guruRepo domain.GuruRepository, siswaRepo domain.SiswaRepository) RekapNilaiService {
+	return &rekapNilaiService{rekapRepo, tugasRepo, mengajarRepo, guruRepo, siswaRepo}
+}
+
+// resolveGuruID maps a user ID to the guru record ID. Returns 0 if not found.
+func (s *rekapNilaiService) resolveGuruID(userID uint) uint {
+	guru, err := s.guruRepo.FindByUserID(userID)
+	if err != nil {
+		return 0
+	}
+	return guru.ID
+}
+
+// calculateNilaiAkhir computes the weighted final score.
+// Returns nil when mid or uas haven't been set yet.
+func calculateNilaiAkhir(tugas []domain.NilaiTugas, mid, uas *float64, bobotTugas, bobotMid, bobotUAS float64) *float64 {
+	if mid == nil || uas == nil {
+		return nil
+	}
+	var avgTugas float64
+	if len(tugas) > 0 {
+		sum := 0.0
+		for _, t := range tugas {
+			sum += t.Nilai
+		}
+		avgTugas = sum / float64(len(tugas))
+	}
+	result := (avgTugas * bobotTugas / 100) + (*mid * bobotMid / 100) + (*uas * bobotUAS / 100)
+	return &result
+}
+
+func (s *rekapNilaiService) UpsertRekap(req dto.UpsertRekapNilaiRequest, callerUserID uint) (*domain.RekapNilai, error) {
+	// Verify the caller is the assigned teacher for this mengajar entry
+	mengajar, err := s.mengajarRepo.FindByID(req.MengajarID)
+	if err != nil {
+		return nil, errors.New("data mengajar tidak ditemukan")
+	}
+	guruID := s.resolveGuruID(callerUserID)
+	if guruID == 0 || mengajar.GuruID != guruID {
+		return nil, errors.New("anda tidak memiliki hak input nilai untuk mata pelajaran ini")
+	}
+
+	// Apply default bobot if not provided
+	bobotTugas := 30.0
+	if req.BobotTugas != nil {
+		bobotTugas = *req.BobotTugas
+	}
+	bobotMid := 30.0
+	if req.BobotMid != nil {
+		bobotMid = *req.BobotMid
+	}
+	bobotUAS := 40.0
+	if req.BobotUAS != nil {
+		bobotUAS = *req.BobotUAS
+	}
+
+	// Validate bobot total = 100
+	if bobotTugas+bobotMid+bobotUAS != 100 {
+		return nil, errors.New("total bobot tugas + mid + uas harus 100")
+	}
+
+	// Find existing or create
+	existing, findErr := s.rekapRepo.FindByMengajarSiswaSemester(req.MengajarID, req.SiswaID, req.Semester, req.TahunAjaran)
+
+	var rekap *domain.RekapNilai
+	if findErr != nil {
+		// Create new
+		rekap = &domain.RekapNilai{
+			MengajarID:  req.MengajarID,
+			SiswaID:     req.SiswaID,
+			Semester:    req.Semester,
+			TahunAjaran: req.TahunAjaran,
+			BobotTugas:  bobotTugas,
+			BobotMid:    bobotMid,
+			BobotUAS:    bobotUAS,
+		}
+	} else {
+		rekap = existing
+		rekap.BobotTugas = bobotTugas
+		rekap.BobotMid = bobotMid
+		rekap.BobotUAS = bobotUAS
+	}
+
+	rekap.NilaiMid = req.NilaiMid
+	rekap.NilaiUAS = req.NilaiUAS
+
+	// Build tugas list to compute nilai akhir before saving
+	tugasList := make([]domain.NilaiTugas, 0, len(req.Tugas))
+	for _, t := range req.Tugas {
+		tugasList = append(tugasList, domain.NilaiTugas{
+			Ke:         t.Ke,
+			Nilai:      t.Nilai,
+			Keterangan: t.Keterangan,
+		})
+	}
+	rekap.NilaiAkhir = calculateNilaiAkhir(tugasList, rekap.NilaiMid, rekap.NilaiUAS, rekap.BobotTugas, rekap.BobotMid, rekap.BobotUAS)
+
+	if err := s.rekapRepo.Upsert(rekap); err != nil {
+		return nil, err
+	}
+
+	// Replace all tugas for this rekap
+	if err := s.tugasRepo.DeleteByRekapID(rekap.ID); err != nil {
+		return nil, err
+	}
+	for i := range tugasList {
+		tugasList[i].RekapNilaiID = rekap.ID
+	}
+	if err := s.tugasRepo.CreateBatch(tugasList); err != nil {
+		return nil, err
+	}
+
+	return s.rekapRepo.FindByID(rekap.ID)
+}
+
+func (s *rekapNilaiService) DeleteRekap(id uint, callerUserID uint) error {
+	rekap, err := s.rekapRepo.FindByID(id)
+	if err != nil {
+		return errors.New("data rekap nilai tidak ditemukan")
+	}
+	guruID := s.resolveGuruID(callerUserID)
+	if guruID == 0 || rekap.Mengajar.GuruID != guruID {
+		return errors.New("anda tidak memiliki hak menghapus rekap nilai ini")
+	}
+	return s.rekapRepo.Delete(id)
+}
+
+func (s *rekapNilaiService) GetRekap(id uint) (*domain.RekapNilai, error) {
+	return s.rekapRepo.FindByID(id)
+}
+
+func (s *rekapNilaiService) ListRekap(param domain.PaginationParam, mengajarID, siswaID, kelasID uint, semester, tahunAjaran string) (*domain.PaginatedResult[domain.RekapNilai], error) {
+	return s.rekapRepo.List(param, mengajarID, siswaID, kelasID, semester, tahunAjaran)
+}
+
+// BatchInputKomponen inputs one grading component for multiple students at once.
+func (s *rekapNilaiService) BatchInputKomponen(req dto.BatchKomponenRequest, callerUserID uint) error {
+	mengajar, err := s.mengajarRepo.FindByID(req.MengajarID)
+	if err != nil {
+		return errors.New("data mengajar tidak ditemukan")
+	}
+	guruID := s.resolveGuruID(callerUserID)
+	if guruID == 0 || mengajar.GuruID != guruID {
+		return errors.New("anda tidak memiliki hak input nilai untuk mata pelajaran ini")
+	}
+	if req.Komponen == "tugas" && req.KeTugas < 1 {
+		return errors.New("ke_tugas harus >= 1")
+	}
+
+	// Resolve bobot — use defaults if zero
+	bobotTugas := req.BobotTugas
+	if bobotTugas == 0 {
+		bobotTugas = 30
+	}
+	bobotMid := req.BobotMid
+	if bobotMid == 0 {
+		bobotMid = 30
+	}
+	bobotUAS := req.BobotUAS
+	if bobotUAS == 0 {
+		bobotUAS = 40
+	}
+	if math.Abs(bobotTugas+bobotMid+bobotUAS-100) > 0.01 {
+		return errors.New("total bobot harus 100")
+	}
+
+	for _, item := range req.Data {
+		// Find or create rekap for this student
+		rekap, findErr := s.rekapRepo.FindByMengajarSiswaSemester(req.MengajarID, item.SiswaID, req.Semester, req.TahunAjaran)
+		if findErr != nil {
+			rekap = &domain.RekapNilai{
+				MengajarID:  req.MengajarID,
+				SiswaID:     item.SiswaID,
+				Semester:    req.Semester,
+				TahunAjaran: req.TahunAjaran,
+				BobotTugas:  bobotTugas,
+				BobotMid:    bobotMid,
+				BobotUAS:    bobotUAS,
+			}
+			if err := s.rekapRepo.Upsert(rekap); err != nil {
+				return err
+			}
+		} else {
+			rekap.BobotTugas = bobotTugas
+			rekap.BobotMid = bobotMid
+			rekap.BobotUAS = bobotUAS
+		}
+
+		// Update the specific component
+		switch req.Komponen {
+		case "tugas":
+			if err := s.tugasRepo.UpsertByRekapAndKe(rekap.ID, req.KeTugas, item.Nilai, item.Keterangan); err != nil {
+				return err
+			}
+		case "mid":
+			rekap.NilaiMid = &item.Nilai
+		case "uas":
+			rekap.NilaiUAS = &item.Nilai
+		}
+
+		// Recalculate nilai akhir
+		allTugas, _ := s.tugasRepo.GetAllByRekapID(rekap.ID)
+		rekap.NilaiAkhir = calculateNilaiAkhir(allTugas, rekap.NilaiMid, rekap.NilaiUAS, rekap.BobotTugas, rekap.BobotMid, rekap.BobotUAS)
+		if err := s.rekapRepo.Update(rekap); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetKelasNilai returns a full class-level grade roster.
+func (s *rekapNilaiService) GetKelasNilai(mengajarID uint, semester, tahunAjaran string) (*dto.KelasNilaiView, error) {
+	mengajar, err := s.mengajarRepo.FindByID(mengajarID)
+	if err != nil {
+		return nil, errors.New("data mengajar tidak ditemukan")
+	}
+
+	allSiswa, err := s.siswaRepo.GetByKelasID(mengajar.KelasID)
+	if err != nil {
+		return nil, err
+	}
+
+	rekapList, err := s.rekapRepo.ListByMengajarSemester(mengajarID, semester, tahunAjaran)
+	if err != nil {
+		return nil, err
+	}
+
+	// Map siswa_id → rekap
+	rekapMap := make(map[uint]*domain.RekapNilai, len(rekapList))
+	for i := range rekapList {
+		rekapMap[rekapList[i].SiswaID] = &rekapList[i]
+	}
+
+	// Determine bobot and jumlah_tugas from existing data
+	bobotTugas, bobotMid, bobotUAS := 30.0, 30.0, 40.0
+	jumlahTugas := 0
+	for _, rekap := range rekapList {
+		if rekap.BobotTugas > 0 {
+			bobotTugas, bobotMid, bobotUAS = rekap.BobotTugas, rekap.BobotMid, rekap.BobotUAS
+		}
+		for _, t := range rekap.Tugas {
+			if t.Ke > jumlahTugas {
+				jumlahTugas = t.Ke
+			}
+		}
+	}
+
+	rows := make([]dto.StudentNilaiRow, 0, len(allSiswa))
+	for _, siswa := range allSiswa {
+		row := dto.StudentNilaiRow{
+			SiswaID:   siswa.ID,
+			NamaSiswa: siswa.Nama,
+			NIS:       siswa.NIS,
+			Tugas:     make([]*float64, jumlahTugas),
+		}
+		if rekap, ok := rekapMap[siswa.ID]; ok {
+			row.RekapID = &rekap.ID
+			row.Mid = rekap.NilaiMid
+			row.UAS = rekap.NilaiUAS
+			row.NilaiAkhir = rekap.NilaiAkhir
+			for _, t := range rekap.Tugas {
+				if t.Ke >= 1 && t.Ke <= jumlahTugas {
+					v := t.Nilai
+					row.Tugas[t.Ke-1] = &v
+				}
+			}
+		}
+		rows = append(rows, row)
+	}
+
+	namaMapel, namaKelas := "", ""
+	if mengajar.Mapel.ID > 0 {
+		namaMapel = mengajar.Mapel.NamaMapel
+	}
+	if mengajar.Kelas.ID > 0 {
+		namaKelas = mengajar.Kelas.NamaKelas
+	}
+
+	return &dto.KelasNilaiView{
+		MengajarID:  mengajarID,
+		NamaMapel:   namaMapel,
+		NamaKelas:   namaKelas,
+		Semester:    semester,
+		TahunAjaran: tahunAjaran,
+		JumlahTugas: jumlahTugas,
+		BobotTugas:  bobotTugas,
+		BobotMid:    bobotMid,
+		BobotUAS:    bobotUAS,
+		Siswa:       rows,
+	}, nil
+}
+
 // ─── REPORT SERVICE ───────────────────────────────────────────────────────────
 type ReportService interface {
 	GetJurnalReport(param domain.PaginationParam, guruID uint, kelasID uint, startDate, endDate *time.Time) (*domain.PaginatedResult[domain.Jurnal], error)
@@ -1680,6 +2065,9 @@ type ReportService interface {
 	GetAdminDashboard() (map[string]interface{}, error)
 	GetOrtuDashboard(userID uint) (map[string]interface{}, error)
 	GetGuruDashboard(userID uint) (map[string]interface{}, error)
+	// Rekap agregat
+	GetRekapAbsensiSiswa(kelasID, siswaID uint, startDate, endDate time.Time) ([]dto.RekapAbsensiSiswaItem, error)
+	GetRekapAbsensiGuru(guruID uint, startDate, endDate time.Time) ([]dto.RekapAbsensiGuruItem, error)
 }
 
 type reportService struct {
@@ -1935,6 +2323,161 @@ func (s *reportService) GetAdminDashboard() (map[string]interface{}, error) {
 		"guru_hadir_hari_ini":  guruHadir,
 		"guru_tidak_hadir":     guruTidakHadir,
 	}, nil
+}
+
+// GetRekapAbsensiSiswa returns per-student attendance totals sourced from
+// tbl_presensi_siswa (both jurnal-linked records and direct QR scans).
+func (s *reportService) GetRekapAbsensiSiswa(kelasID, siswaID uint, startDate, endDate time.Time) ([]dto.RekapAbsensiSiswaItem, error) {
+	type row struct {
+		SiswaID    uint
+		NamaSiswa  string
+		NIS        string
+		NamaKelas  string
+		TotalHadir int
+		TotalSakit int
+		TotalIzin  int
+		TotalAlpha int
+	}
+	var rows []row
+	err := s.db.Raw(`
+		SELECT
+			ps.siswa_id,
+			s.nama    AS nama_siswa,
+			s.nis,
+			k.nama_kelas,
+			SUM(CASE WHEN ps.status_kehadiran = 'H' THEN 1 ELSE 0 END) AS total_hadir,
+			SUM(CASE WHEN ps.status_kehadiran = 'S' THEN 1 ELSE 0 END) AS total_sakit,
+			SUM(CASE WHEN ps.status_kehadiran = 'I' THEN 1 ELSE 0 END) AS total_izin,
+			SUM(CASE WHEN ps.status_kehadiran = 'A' THEN 1 ELSE 0 END) AS total_alpha
+		FROM tbl_presensi_siswa ps
+		JOIN tbl_siswa s ON s.id = ps.siswa_id AND s.deleted_at IS NULL
+		JOIN tbl_kelas k  ON k.id = s.kelas_id  AND k.deleted_at IS NULL
+		LEFT JOIN tbl_jurnal j ON j.id = ps.jurnal_id AND j.deleted_at IS NULL
+		WHERE ps.deleted_at IS NULL
+		  AND ps.tipe_absen = 'masuk'
+		  AND (
+		        (ps.jurnal_id IS NOT NULL AND j.tanggal BETWEEN ? AND ?)
+		     OR (ps.jurnal_id IS NULL     AND DATE(ps.created_at) BETWEEN ? AND ?)
+		      )
+		  AND (? = 0 OR s.kelas_id = ?)
+		  AND (? = 0 OR s.id = ?)
+		GROUP BY ps.siswa_id, s.nama, s.nis, k.nama_kelas
+		ORDER BY k.nama_kelas, s.nama
+	`, startDate, endDate, startDate, endDate, kelasID, kelasID, siswaID, siswaID).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]dto.RekapAbsensiSiswaItem, 0, len(rows))
+	for _, r := range rows {
+		total := r.TotalHadir + r.TotalSakit + r.TotalIzin + r.TotalAlpha
+		pct := 0.0
+		if total > 0 {
+			pct = math.Round(float64(r.TotalHadir)/float64(total)*1000) / 10
+		}
+		result = append(result, dto.RekapAbsensiSiswaItem{
+			SiswaID:    r.SiswaID,
+			NamaSiswa:  r.NamaSiswa,
+			NIS:        r.NIS,
+			NamaKelas:  r.NamaKelas,
+			TotalHadir: r.TotalHadir,
+			TotalSakit: r.TotalSakit,
+			TotalIzin:  r.TotalIzin,
+			TotalAlpha: r.TotalAlpha,
+			TotalHari:  total,
+			Persentase: pct,
+		})
+	}
+	return result, nil
+}
+
+// GetRekapAbsensiGuru combines absensi QR (tbl_absensi_guru) and
+// jurnal entries (tbl_jurnal) to produce a per-teacher summary.
+func (s *reportService) GetRekapAbsensiGuru(guruID uint, startDate, endDate time.Time) ([]dto.RekapAbsensiGuruItem, error) {
+	// Step 1: absensi summary per guru
+	type absRow struct {
+		GuruID         uint
+		NamaGuru       string
+		NIP            string
+		TotalHadir     int
+		TotalTerlambat int
+		TotalIzin      int
+		TotalSakit     int
+		TotalAlpa      int
+	}
+	var absRows []absRow
+	err := s.db.Raw(`
+		SELECT
+			ag.guru_id,
+			g.nama  AS nama_guru,
+			g.nip,
+			SUM(CASE WHEN ag.status = 'Hadir'     THEN 1 ELSE 0 END) AS total_hadir,
+			SUM(CASE WHEN ag.status = 'Terlambat' THEN 1 ELSE 0 END) AS total_terlambat,
+			SUM(CASE WHEN ag.status = 'Izin'      THEN 1 ELSE 0 END) AS total_izin,
+			SUM(CASE WHEN ag.status = 'Sakit'     THEN 1 ELSE 0 END) AS total_sakit,
+			SUM(CASE WHEN ag.status = 'Alpa'      THEN 1 ELSE 0 END) AS total_alpa
+		FROM tbl_absensi_guru ag
+		JOIN tbl_guru g ON g.id = ag.guru_id AND g.deleted_at IS NULL
+		WHERE ag.deleted_at IS NULL
+		  AND ag.tanggal BETWEEN ? AND ?
+		  AND (? = 0 OR ag.guru_id = ?)
+		GROUP BY ag.guru_id, g.nama, g.nip
+		ORDER BY g.nama
+	`, startDate, endDate, guruID, guruID).Scan(&absRows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 2: jurnal count per guru
+	type jurnalRow struct {
+		GuruID      uint
+		TotalJurnal int
+	}
+	var jurnalRows []jurnalRow
+	err = s.db.Raw(`
+		SELECT m.guru_id, COUNT(j.id) AS total_jurnal
+		FROM tbl_jurnal j
+		JOIN tbl_mengajar m ON m.id = j.mengajar_id AND m.deleted_at IS NULL
+		WHERE j.deleted_at IS NULL
+		  AND j.tanggal BETWEEN ? AND ?
+		  AND (? = 0 OR m.guru_id = ?)
+		GROUP BY m.guru_id
+	`, startDate, endDate, guruID, guruID).Scan(&jurnalRows).Error
+	if err != nil {
+		return nil, err
+	}
+	jMap := make(map[uint]int, len(jurnalRows))
+	for _, j := range jurnalRows {
+		jMap[j.GuruID] = j.TotalJurnal
+	}
+
+	result := make([]dto.RekapAbsensiGuruItem, 0, len(absRows))
+	for _, r := range absRows {
+		hadirFisik := r.TotalHadir + r.TotalTerlambat
+		totalAll := hadirFisik + r.TotalIzin + r.TotalSakit + r.TotalAlpa
+		pct := 0.0
+		if totalAll > 0 {
+			pct = math.Round(float64(hadirFisik)/float64(totalAll)*1000) / 10
+		}
+		jurnalCount := jMap[r.GuruID]
+		tanpaJurnal := hadirFisik - jurnalCount
+		if tanpaJurnal < 0 {
+			tanpaJurnal = 0
+		}
+		result = append(result, dto.RekapAbsensiGuruItem{
+			GuruID:           r.GuruID,
+			NamaGuru:         r.NamaGuru,
+			NIP:              r.NIP,
+			TotalHadir:       r.TotalHadir,
+			TotalTerlambat:   r.TotalTerlambat,
+			TotalIzin:        r.TotalIzin,
+			TotalSakit:       r.TotalSakit,
+			TotalAlpa:        r.TotalAlpa,
+			TotalJurnal:      jurnalCount,
+			Persentase:       pct,
+			HadirTanpaJurnal: tanpaJurnal,
+		})
+	}
+	return result, nil
 }
 
 // ─── QR SERVICE ───────────────────────────────────────────────────────────────

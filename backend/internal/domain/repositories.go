@@ -286,6 +286,29 @@ type NilaiRepository interface {
 	List(param PaginationParam, siswaID uint, mapelID uint, jenisNilai string) (*PaginatedResult[Nilai], error)
 }
 
+// RekapNilaiRepository interface
+type RekapNilaiRepository interface {
+	Upsert(rekap *RekapNilai) error
+	Update(rekap *RekapNilai) error
+	Delete(id uint) error
+	FindByID(id uint) (*RekapNilai, error)
+	FindByMengajarSiswaSemester(mengajarID, siswaID uint, semester, tahunAjaran string) (*RekapNilai, error)
+	List(param PaginationParam, mengajarID, siswaID, kelasID uint, semester, tahunAjaran string) (*PaginatedResult[RekapNilai], error)
+	ListByMengajarSemester(mengajarID uint, semester, tahunAjaran string) ([]RekapNilai, error)
+}
+
+// NilaiTugasRepository interface
+type NilaiTugasRepository interface {
+	Create(tugas *NilaiTugas) error
+	Update(tugas *NilaiTugas) error
+	Delete(id uint) error
+	FindByID(id uint) (*NilaiTugas, error)
+	DeleteByRekapID(rekapID uint) error
+	CreateBatch(tugas []NilaiTugas) error
+	UpsertByRekapAndKe(rekapID uint, ke int, nilai float64, keterangan string) error
+	GetAllByRekapID(rekapID uint) ([]NilaiTugas, error)
+}
+
 // NotifikasiRepository interface
 type NotifikasiRepository interface {
 	Create(notif *Notifikasi) error

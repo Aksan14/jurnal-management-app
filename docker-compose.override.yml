@@ -1,0 +1,65 @@
+# docker-compose.override.yml
+# ── Override untuk demo lokal ─────────────────────────────────────────────
+# Otomatis dibaca docker compose bersama docker-compose.yml
+# Menyesuaikan: port MySQL (3307 hindari konflik), heap ES kecil, skip build frontend
+
+name: jurnal-apps
+
+services:
+
+  # MySQL pakai port 3307 di host (3306 sudah dipakai MySQL lokal)
+  mysql:
+    environment:
+      MYSQL_ROOT_PASSWORD: Root123!
+      MYSQL_DATABASE: jurnal_db
+
+  # Redis tanpa password expose
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Backend — expose port ke host untuk akses frontend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_PASSWORD: Root123!
+      REDIS_PASSWORD: Redis123Demo!
+
+  # Frontend — skip rebuild (pakai image jika sudah ada, build jika belum)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+  # Elasticsearch — heap dikecilkan untuk RAM terbatas
+  elasticsearch:
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - cluster.name=jurnal-cluster
+    ports:
+      - "9200:9200"
+
+  # Logstash — heap kecil
+  logstash:
+    environment:
+      - LS_JAVA_OPTS=-Xms128m -Xmx128m
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+
+  # Kibana — expose ke host
+  kibana:
+    ports:
+      - "5601:5601"
+
+  # Nginx — port 80
+  nginx:
+    ports:
+      - "80:80"

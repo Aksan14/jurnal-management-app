@@ -368,7 +368,7 @@ export default function AdminSiswaPage() {
                     <SelectContent>
           <SelectGroup>
                       {kelasList.map(k => (
-                        <SelectItem key={k.id} value={k.id.toString()}>{k.nama_kelas}</SelectItem>
+                        <SelectItem key={k.id} value={k.id.toString()} label={k.nama_kelas}>{k.nama_kelas}</SelectItem>
                       ))}
                               </SelectGroup>
         </SelectContent>
@@ -381,7 +381,7 @@ export default function AdminSiswaPage() {
                     <SelectContent>
           <SelectGroup>
                       {jurusanList.map(j => (
-                        <SelectItem key={j.id} value={j.id.toString()}>{j.nama_jurusan}</SelectItem>
+                        <SelectItem key={j.id} value={j.id.toString()} label={j.nama_jurusan}>{j.nama_jurusan}</SelectItem>
                       ))}
                               </SelectGroup>
         </SelectContent>

@@ -36,6 +36,8 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, rdb *redis.Clien
 	perGuruRepo := repository.NewIzinGuruRepository(db)
 	pesanRepo := repository.NewPesanRepository(db)
 	nilaiRepo := repository.NewNilaiRepository(db)
+	rekapNilaiRepo := repository.NewRekapNilaiRepository(db)
+	nilaiTugasRepo := repository.NewNilaiTugasRepository(db)
 	auditRepo := repository.NewAuditLogRepository(db)
 	kehadiranGuruRepo := repository.NewKehadiranGuruRepository(db)
 	requestMundurRepo := repository.NewRequestJurnalMundurRepository(db)
@@ -47,6 +49,7 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, rdb *redis.Clien
 	bkService := service.NewBKService(bkRepo, pelRepo, presRepo, tesRepo, proyRepo, guruRepo)
 	perizinanService := service.NewPerizinanService(db, perSiswaRepo, perGuruRepo, guruRepo, siswaRepo, pesanRepo, userRepo)
 	nilaiService := service.NewNilaiService(nilaiRepo, guruRepo)
+	rekapNilaiService := service.NewRekapNilaiService(rekapNilaiRepo, nilaiTugasRepo, mengajarRepo, guruRepo, siswaRepo)
 	reportService := service.NewReportService(db, guruRepo, siswaRepo, kelasRepo, mapelRepo, jurnalRepo, absGuruRepo, absSiswaRepo, pelRepo, presRepo, auditRepo, anakOrtuRepo)
 	qrService := service.NewQRService(siswaRepo, guruRepo)
 	fileService := service.NewFileService()
@@ -61,6 +64,7 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, rdb *redis.Clien
 	bkHandler := handler.NewBKHandler(bkService)
 	perizinanHandler := handler.NewPerizinanHandler(perizinanService, guruRepo, mengajarRepo, siswaRepo)
 	nilaiHandler := handler.NewNilaiHandler(nilaiService)
+	rekapNilaiHandler := handler.NewRekapNilaiHandler(rekapNilaiService)
 	reportHandler := handler.NewReportHandler(reportService, siswaRepo, rdb)
 	qrHandler := handler.NewQRHandler(qrService)
 	fileHandler := handler.NewFileHandler(fileService)
@@ -278,6 +282,15 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, rdb *redis.Clien
 	nilaiGroup.PUT("/:id", nilaiHandler.Update, middleware.RBACMiddleware("guru", "wali_kelas"))
 	nilaiGroup.DELETE("/:id", nilaiHandler.Delete, middleware.RBACMiddleware("guru", "wali_kelas"))
 
+	// Rekap Nilai (structured grading with dynamic tasks + auto-calculated final score)
+	rekapGroup := api.Group("/nilai/rekap")
+	rekapGroup.GET("", rekapNilaiHandler.List)
+	rekapGroup.GET("/kelas", rekapNilaiHandler.GetKelas)
+	rekapGroup.GET("/:id", rekapNilaiHandler.GetByID)
+	rekapGroup.POST("/upsert", rekapNilaiHandler.Upsert, middleware.RBACMiddleware("guru", "wali_kelas"))
+	rekapGroup.POST("/batch", rekapNilaiHandler.BatchInput, middleware.RBACMiddleware("guru", "wali_kelas"))
+	rekapGroup.DELETE("/:id", rekapNilaiHandler.Delete, middleware.RBACMiddleware("guru", "wali_kelas"))
+
 	// ====================================================
 	// REPORTS MODULE ROUTES
 	// ====================================================
@@ -288,6 +301,8 @@ func SetupRoutes(e *echo.Echo, db *gorm.DB, cfg *config.Config, rdb *redis.Clien
 	reportsGroup.GET("/jurnal", reportHandler.GetJurnalReport, middleware.RBACMiddleware("guru", "wali_kelas", "admin"))
 	reportsGroup.GET("/attendance", reportHandler.GetAttendanceReport, middleware.RBACMiddleware("siswa", "orang_tua", "admin"))
 	reportsGroup.GET("/teacher-attendance", reportHandler.GetTeacherAttendanceReport, middleware.RBACMiddleware("guru", "admin"))
+	reportsGroup.GET("/rekap-absensi-siswa", reportHandler.GetRekapAbsensiSiswa, middleware.RBACMiddleware("admin", "kepsek"))
+	reportsGroup.GET("/rekap-absensi-guru", reportHandler.GetRekapAbsensiGuru, middleware.RBACMiddleware("admin", "kepsek"))
 	reportsGroup.GET("/violations", reportHandler.GetViolationsReport, middleware.RBACMiddleware("siswa", "orang_tua", "admin", "guru_bk"))
 	reportsGroup.GET("/achievements", reportHandler.GetAchievementsReport, middleware.RBACMiddleware("siswa", "orang_tua", "admin", "guru_bk"))
 	reportsGroup.GET("/audit-logs", reportHandler.ListAuditLogs, middleware.RBACMiddleware("admin", "kepsek"))

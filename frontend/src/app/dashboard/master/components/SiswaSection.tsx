@@ -523,7 +523,7 @@ export default function SiswaSection({ search, isKepsek }: SiswaSectionProps) {
                     </SelectTrigger>
                     <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                      {kelases.map((k) => (<SelectItem key={k.id || k.ID} value={String(k.id || k.ID)}>{k.nama_kelas}</SelectItem>))}
+                      {kelases.map((k) => (<SelectItem key={k.id || k.ID} value={String(k.id || k.ID)} label={k.nama_kelas}>{k.nama_kelas}</SelectItem>))}
                               </SelectGroup>
         </SelectContent>
                   </Select>
@@ -537,7 +537,7 @@ export default function SiswaSection({ search, isKepsek }: SiswaSectionProps) {
                     </SelectTrigger>
                     <SelectContent className="bg-[#111420] border-border/30 text-white">
           <SelectGroup>
-                      {jurusans.map((j) => (<SelectItem key={j.id || j.ID} value={String(j.id || j.ID)}>{j.nama_jurusan}</SelectItem>))}
+                      {jurusans.map((j) => (<SelectItem key={j.id || j.ID} value={String(j.id || j.ID)} label={j.nama_jurusan}>{j.nama_jurusan}</SelectItem>))}
                               </SelectGroup>
         </SelectContent>
                   </Select>
